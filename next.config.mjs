@@ -1,6 +1,8 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  /* config options here */
-};
+// next.config.mjs
+import nextra from 'nextra'
 
-export default nextConfig;
+const withNextra = nextra({
+    // contentDirBasePath: '/docs'
+})
+
+export default withNextra()

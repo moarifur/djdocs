@@ -1,0 +1,157 @@
+# Django Setup
+
+Follow each step carefully. **Do not skip any step.**
+
+---
+
+## Step-by-Step Setup
+
+### Step 1 — Check Python Installation
+
+```bash
+python -V
+```
+
+**Expected Output:** `Python 3.x.x`
+
+> If you see a version number, Python is installed correctly.
+> If you see `"python is not recognized"` or `"Python was not found"`, Python is **not** installed.
+> **Fix:** Open Microsoft Store → search "Python" → click Install. Then restart your terminal and run `python -V` again.
+
+---
+
+### Step 2 — Upgrade pip
+
+```bash
+python -m pip install --upgrade pip
+```
+
+> `pip` is the package manager used to install Django and other libraries.
+
+---
+
+### Step 3 — Create Virtual Environment
+
+```bash
+python -m venv venv
+```
+
+> This creates a folder named `venv` in your project directory.
+
+---
+
+### Step 4 — Activate Virtual Environment
+
+```bash
+venv\Scripts\activate
+```
+
+**Expected Output:** `(venv) C:\your-path>`
+
+> The `(venv)` prefix confirms you are inside the virtual environment.
+
+---
+
+### Step 5 — Install Django
+
+```bash
+pip install django
+```
+
+> Django installs **only inside this virtual environment** — not globally.
+
+---
+
+### Step 6 — Verify Installation
+
+```bash
+pip freeze
+```
+
+**Expected Output:** `Django==5.x.x`
+
+> This lists all packages installed in the current virtual environment.
+
+---
+
+### Step 7 — Create Django Project
+
+```bash
+django-admin startproject myproject
+```
+
+> This generates your Django project folder and configuration files.
+
+---
+
+### Step 8 — Move into Project Folder
+
+```bash
+cd myproject
+```
+
+> You must be inside the project folder before running the server.
+
+---
+
+### Step 9 — Run Development Server
+
+```bash
+python manage.py runserver
+```
+
+**Expected Output:** `Starting development server at http://127.0.0.1:8000/`
+
+> Open your browser and go to [http://127.0.0.1:8000/](http://127.0.0.1:8000/) to see the Django welcome page!
+
+---
+
+## Project Structure
+
+After running `startproject`, your folder will look like this:
+
+```
+myproject/
+│
+├── manage.py
+└── myproject/
+    ├── __init__.py
+    ├── settings.py
+    ├── urls.py
+    ├── asgi.py
+    └── wsgi.py
+```
+
+### File Descriptions
+
+| File          | Purpose                                                                 |
+|---------------|-------------------------------------------------------------------------|
+| `manage.py`   | Main command-line utility for managing your Django project              |
+| `settings.py` | All project configuration: database, apps, middleware, static files     |
+| `urls.py`     | URL routing — maps web addresses to views                               |
+| `wsgi.py`     | Web Server Gateway Interface — used for traditional deployment          |
+| `asgi.py`     | Asynchronous Server Gateway Interface — used for async/real-time support|
+| `__init__.py` | Marks the directory as a Python package (usually left empty)            |
+
+---
+
+## Common Mistakes to Avoid
+
+| ❌ Mistake                                          | ✅ Correct Practice                                                          |
+|----------------------------------------------------|----------------------------------------------------------------------------|
+| Not activating the virtual environment             | Always check that `(venv)` is visible in your terminal prompt              |
+| Installing Django globally with `pip install django` | Always install inside the virtual environment (after activation)         |
+| Running server from the wrong folder               | Always `cd` into the project folder before `python manage.py runserver`    |
+| Forgetting to upgrade pip first                    | Run `pip install --upgrade pip` right after creating the venv              |
+
+---
+
+## Quick Reference Summary
+
+| Concept             | Summary                                              |
+|---------------------|------------------------------------------------------|
+| Django              | Python web framework for building websites quickly   |
+| Virtual Environment | Isolated workspace to avoid package conflicts        |
+| pip                 | Python package installer                             |
+| `manage.py`         | Project controller — runs server, migrations, and more |
+| `settings.py`       | All project configuration lives here                |

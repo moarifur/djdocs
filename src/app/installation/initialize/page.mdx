@@ -1,0 +1,131 @@
+# 🌐 Crafting the Next.js LMS Frontend with ShadCN
+
+In this guide, we'll walk through initializing our LMS client project, installing ShadCN UI, and ensuring Tailwind CSS works properly with Next.js App Router. Along the way, we'll address a few quirks and setup issues you might face (and how to fix them quickly).
+
+## ✅ Step 1: Create & Checkout the Feature Branch
+
+Let's begin by working in a dedicated Git feature branch for our epic:
+
+```bash
+git checkout feature/EPIC-1-project-initialization-auth
+```
+
+Check that everything is clean and ready to go:
+
+```bash
+git status
+# On branch feature/EPIC-1-project-initialization-auth
+# nothing to commit, working tree clean
+```
+
+## ⚙️ Step 2: Install ShadCN UI
+
+ShadCN gives us beautiful, accessible, Tailwind-powered components.
+
+Run the initialization command:
+
+```bash
+npx shadcn@latest init
+```
+
+You'll be guided through a few prompts:
+
+- ✅ **Framework**: Next.js detected automatically
+- ✅ **Tailwind**: Validated
+- 🎨 **Choose base color**: I selected Slate
+
+ShadCN will then:
+- Update `globals.css`
+- Add required dependencies
+- Create `lib/utils.js`
+
+You should see:
+
+```
+Success! Project initialization completed.
+You may now add components.
+```
+
+## 🧪 Step 3: Add Your First Component – A Button
+
+Let's add the Button component:
+
+```bash
+npx shadcn@latest add button
+```
+
+This will generate a new file:
+
+```bash
+components/ui/button.jsx
+```
+
+Now, you're ready to use it in your UI!
+
+## 🧩 Step 4: Testing in page.js
+
+Here's how we used the Button component on the homepage:
+
+```jsx
+// app/(dashboard)/(routes)/page.mdx
+
+import React from 'react';
+import { Button } from "@/components/ui/button";
+
+const HomePage = () => {
+  return (
+    <div>
+      <p className="text-5xl">Hi</p>
+      <Button>Click me!!</Button>
+    </div>
+  );
+};
+
+export default HomePage;
+```
+
+📁 We are using grouped routes for layout isolation:
+- `app/(auth)/(routes)/sign-in/page.mdx`
+- `app/(auth)/(routes)/sign-up/page.mdx`
+- `app/(dashboard)/(routes)/page.mdx`
+
+## 🧹 Tailwind & ShadCN Not Working? Here's a Quick Fix
+
+If Tailwind or ShadCN components aren't rendering styles after ShadCN setup, try this:
+
+1. Open `app/globals.css`
+2. Make any minor change (e.g., press Enter inside the file, then remove it)
+3. Save the file
+
+This forces Tailwind to regenerate and recognize ShadCN styles.
+
+## ⚠️ Warning: global.css Might Get Overwritten
+
+Before installing ShadCN, our `globals.css` had this block:
+
+```css
+html,
+body,
+:root {
+  height: 100%;
+}
+```
+
+After running `shadcn init`, this line may be removed automatically. Be sure to re-add it if needed to prevent layout issues.
+
+## 🔚 Summary
+
+Here's a quick recap of what we've done:
+
+| Step | Description |
+|------|-------------|
+| 1️⃣ | Checked out a clean feature branch |
+| 2️⃣ | Initialized ShadCN with Tailwind & Next.js |
+| 3️⃣ | Installed the Button component |
+| 4️⃣ | Rendered the button on our home page using grouped routes |
+| ⚠️ | Resolved a Tailwind CSS refresh issue |
+| 🛠 | Re-added removed CSS from globals.css |
+
+---
+
+*This guide provides a complete foundation for setting up ShadCN UI with Next.js in your LMS project. Remember to commit your changes and continue with the next steps in your development workflow.*

@@ -1,0 +1,76 @@
+# Django Projects & Apps
+
+## Project vs App
+
+| Term        | Definition                                                        |
+|-------------|-------------------------------------------------------------------|
+| **Project** | The entire web application (e.g. your online shop)               |
+| **App**     | A self-contained building block (module) inside the project      |
+
+### Real-World Analogies
+
+| Project         | Apps Inside It                        |
+|-----------------|---------------------------------------|
+| Google          | Gmail, Maps, Calendar, Drive          |
+| Amazon          | Shop, Music, Prime Video              |
+| An Online Shop  | Products, Cart, Admin Area            |
+
+---
+
+## Creating a New App
+
+Run this command from inside your project directory:
+
+```bash
+python manage.py startapp challenges
+# Replace 'challenges' with your own app name
+```
+
+---
+
+## App Folder Structure
+
+When you run `startapp`, Django creates this folder for you:
+
+```
+challenges/
+├── migrations/      # Track database changes
+├── __init__.py      # Makes this a Python package
+├── admin.py         # Register models for Admin panel
+├── apps.py          # App configuration & metadata
+├── models.py        # Define database structure
+├── tests.py         # Write test cases
+└── views.py         # Handle requests & return responses
+```
+
+### What Each File Does
+
+| File          | Role                      | Think of it as...          |
+|---------------|---------------------------|----------------------------|
+| `models.py`   | Database structure        | Blueprint for your tables  |
+| `views.py`    | Request logic             | The brain of each page     |
+| `admin.py`    | Admin panel control       | Dashboard configurator     |
+| `migrations/` | DB change history         | Git for your database      |
+| `tests.py`    | Automated testing         | Your quality checker       |
+| `apps.py`     | App config & metadata     | App identity card          |
+| `__init__.py` | Python package marker     | Tells Python: I am a module|
+
+---
+
+## Registering Your App in `settings.py`
+
+After creating the app, open `myproject/settings.py` and add your app to `INSTALLED_APPS`:
+
+```python
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'challenges',  # <-- Your new app goes here
+]
+```
+
+> ⚠️ **Important:** If you skip this step, Django will **NOT** know your app exists. Always register first!
