@@ -3,12 +3,12 @@ export default {
         title: 'Intro',
         type: 'page'
     },
-    setup: {
-        title: 'Setup',
+    fundamentals: {
+        title: 'Installation',
         type: 'page'
     },
-    apps: {
-        title: 'Django Apps',
+    routing: {
+        title: 'Routes to Responses',
         type: 'page'
     },
 };

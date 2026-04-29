@@ -1,0 +1,66 @@
+# Workflow Cheat Sheet
+
+Use this as your **step-by-step guide** every time you build a new feature in Django.
+
+## The 6-Step Feature Workflow
+
+| Step | Action | Command / Location |
+|------|--------|-------------------|
+| **1** | Create the App | `python manage.py startapp <appname>` |
+| **2** | Register App | Add `'<appname>'` to `INSTALLED_APPS` in `settings.py` |
+| **3** | Write View | Define a function in `<appname>/views.py` that returns a response |
+| **4** | Create App URLs | Create `<appname>/urls.py` and add `path()` entries in `urlpatterns` |
+| **5** | Connect to Project | Add `path('<prefix>/', include('<appname>.urls'))` in project `urls.py` |
+| **6** | Test in Browser | Run `python manage.py runserver` and visit the URL |
+
+---
+
+## Quick Reference — File Structure
+
+```
+myproject/
+├── myproject/
+│   └── urls.py          ← Step 5: connect app here
+└── <appname>/
+    ├── views.py          ← Step 3: write views here
+    └── urls.py           ← Step 4: create and define routes here
+```
+
+---
+
+## Quick Reference — Code Snippets
+
+### Step 3 — View
+
+```python
+# <appname>/views.py
+from django.http import HttpResponse
+
+def index(request):
+    return HttpResponse('Hello from <appname>!')
+```
+
+### Step 4 — App URLs
+
+```python
+# <appname>/urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.index),
+]
+```
+
+### Step 5 — Project URLs
+
+```python
+# myproject/urls.py
+from django.urls import path, include
+
+urlpatterns = [
+    path('<prefix>/', include('<appname>.urls')),
+]
+```
+
+> **Tip:** Follow these steps in order every time — skipping any step is the most common source of 404 errors in Django.

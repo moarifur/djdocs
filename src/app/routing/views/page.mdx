@@ -1,0 +1,40 @@
+# Views in a nutshell
+
+> **Definition:** A View is a function or class that handles a user request, runs business logic, and returns a response (HTML, JSON, redirect, or a file).
+
+```
+URL = where the user goes
+View = what happens there
+```
+
+## A View Can Do Many Things
+
+- Show plain text
+- Render an HTML page
+- Fetch data from the database
+- Process form input
+- Return JSON (for React or other front-ends)
+- Return a redirect or a file download
+
+## Simple Example — Text Response
+
+```python
+# challenges/views.py
+
+from django.http import HttpResponse
+
+def index(request):
+    return HttpResponse('Hello!')
+```
+
+## What Can a View Return?
+
+| Return Type | Use Case | How |
+|-------------|----------|-----|
+| HTML | Web pages | `return render(request, 'template.html', context)` |
+| JSON | APIs / React front-end | `return JsonResponse({'key': 'value'})` |
+| Redirect | Send user elsewhere | `return redirect('/other-page/')` |
+| File | Download a file | `return FileResponse(open('file.pdf','rb'))` |
+| Plain Text | Quick testing | `return HttpResponse('Hello!')` |
+
+> **Note:** When using React + Django, Django usually returns **JSON data**, and React uses that data to build the UI on the front-end.

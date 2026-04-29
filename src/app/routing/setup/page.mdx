@@ -1,0 +1,92 @@
+# URLs & Views Setup (Step-by-Step)
+
+To show content at `/challenges`, follow these **5 steps in order**.
+
+---
+
+## Step 1 — Create a View Function
+
+Open `challenges/views.py` and write a function that returns an HTTP response:
+
+```python
+# challenges/views.py
+
+from django.http import HttpResponse
+
+def index(request):
+    return HttpResponse('This is the challenges page')
+
+def january(request):
+    return HttpResponse('January challenge!')
+```
+
+> **Why?** A View function receives a `request` object and returns a response. It is the logic that runs when a user visits a URL.
+
+---
+
+## Step 2 — Create `urls.py` Inside Your App
+
+Django does **not** create this file automatically. Create it yourself:
+
+```
+challenges/
+├── views.py
+├── urls.py    <-- create this file
+└── ...
+```
+
+---
+
+## Step 3 — Define `urlpatterns` Using `path()`
+
+Inside `challenges/urls.py`, import `path()` and map URLs to view functions:
+
+```python
+# challenges/urls.py
+
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.index),            # matches /challenges/
+    path('january/', views.january),   # matches /challenges/january/
+]
+```
+
+| Concept | What It Does |
+|---------|--------------|
+| `urlpatterns` | A list that holds all URL-to-view mappings |
+| `path()` | Connects a URL string to a view function |
+| `from . import views` | Imports views from the same app folder |
+
+---
+
+## Step 4 — Connect App URLs to the Project's `urls.py`
+
+Open the **main project** `urls.py` and include your app's URL config:
+
+```python
+# mypage/urls.py  (the main project file)
+
+from django.urls import path, include
+
+urlpatterns = [
+    path('challenges/', include('challenges.urls')),
+]
+```
+
+> **Warning:** Without this step, visiting `/challenges/` will return a **404 error** — Django simply won't know the route exists.
+
+---
+
+## Step 5 — Test in Browser
+
+Run the development server and visit the URL:
+
+```bash
+python manage.py runserver
+```
+
+Then open your browser and go to:
+- `http://127.0.0.1:8000/challenges/` → runs `index` view
+- `http://127.0.0.1:8000/challenges/january/` → runs `january` view

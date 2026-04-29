@@ -1,0 +1,38 @@
+# URLs & Views
+
+When a user visits a link in your Django app, two things work together to handle it.
+
+A **URL** matches the path they visited — `/posts`, `/login`, `/profile` — and decides which code should run. A **View** is that code. It receives the request, does whatever work is needed, and sends back a response.
+
+```
+URL ──────────► View ──────────► Response
+(which path?)   (what happens?)  (HTML · JSON · Redirect)
+```
+
+That's the whole model. Every page, every API endpoint, every redirect in Django is just a URL pointing to a View.
+
+---
+
+## In this section
+
+| Page | What you'll learn |
+|---|---|
+| <a href="/routing/urls" target="_blank" rel="noopener noreferrer">What Are URLs?</a> | How Django matches paths and what `urlpatterns` looks like |
+| <a href="/routing/views" target="_blank" rel="noopener noreferrer">What Are Views?</a> | How to write a view and what it can return |
+| <a href="/routing/setup" target="_blank" rel="noopener noreferrer">Routing Encoded</a> | 5-step process to connect a URL to a view |
+| <a href="/routing/cheatsheet" target="_blank" rel="noopener noreferrer">Cheatsheet</a> | Copy-paste snippets for urls.py and views.py |
+
+[//]: # (## In this section)
+
+[//]: # ()
+[//]: # (| Page | What you'll learn |)
+
+[//]: # (|---|---|)
+
+[//]: # (| [What Are URLs?]&#40;/routing/urls&#41; | How Django matches paths and what `urlpatterns` looks like |)
+
+[//]: # (| [What Are Views?]&#40;/routing/views&#41; | How to write a view and what it can return |)
+
+[//]: # (| [Routing Decoded]&#40;/routing/setup&#41; | The 5-step process to connect a URL to a view |)
+
+[//]: # (| [Cheatsheet]&#40;/routing/cheatsheet&#41; | Copy-paste snippets for urls.py and views.py |)
