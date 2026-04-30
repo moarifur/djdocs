@@ -3,6 +3,10 @@ export default {
         title: 'Intro',
         type: 'page'
     },
+    workflows: {
+        title: 'Development Workflow',
+        type: 'page'
+    },
     fundamentals: {
         title: 'Installation',
         type: 'page'
@@ -11,4 +15,5 @@ export default {
         title: 'Routes to Responses',
         type: 'page'
     },
+
 };

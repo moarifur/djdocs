@@ -1,0 +1,328 @@
+# Django Developer Workflow
+
+> A complete reference workflow for building Django projects — from setup to production-ready features.
+
+---
+
+## 1. Environment Setup
+
+### Check Python
+```bash
+python -V
+# Expected: Python 3.x.x
+```
+
+### Upgrade pip
+```bash
+python -m pip install --upgrade pip
+```
+
+### Create & Activate Virtual Environment
+```bash
+python -m venv venv
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # macOS/Linux
+# Confirm: (venv) prefix appears in terminal
+```
+
+### Install Django
+```bash
+pip install django
+pip freeze                   # Verify: Django==5.x.x
+```
+
+---
+
+## 2. Project Initialization
+
+```bash
+django-admin startproject myproject
+cd myproject
+python manage.py runserver
+# Visit: http://127.0.0.1:8000
+```
+
+**Project structure after init:**
+```
+myproject/
+├── manage.py
+└── myproject/
+    ├── __init__.py
+    ├── settings.py
+    ├── urls.py
+    ├── asgi.py
+    └── wsgi.py
+```
+
+---
+
+## 3. Create & Register an App
+
+### Create the App
+```bash
+python manage.py startapp challenges
+```
+
+### Register in `settings.py`
+```python
+# myproject/settings.py
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'challenges',  # ← your app
+]
+```
+
+> ⚠️ Always register your app before running migrations or expecting templates/models to work.
+
+---
+
+## 4. URLs & Views Setup
+
+### Step 1 — Write View Functions
+```python
+# challenges/views.py
+from django.http import HttpResponse
+
+def index(request):
+    return HttpResponse('This is the challenges page')
+
+def january(request):
+    return HttpResponse('January challenge!')
+```
+
+### Step 2 — Create `challenges/urls.py`
+Django does not auto-create this file. Create it manually.
+
+```python
+# challenges/urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.index),           # /challenges/
+    path('january/', views.january), # /challenges/january/
+]
+```
+
+### Step 3 — Hook into Project URLs
+```python
+# myproject/urls.py
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('challenges/', include('challenges.urls')),
+]
+```
+
+---
+
+## 5. Dynamic URL Routing
+
+### Dynamic Segment
+```python
+# challenges/urls.py
+urlpatterns = [
+    path('<int:month>/', views.monthly_challenges_by_number),  # /challenges/1/
+    path('<str:month>/', views.monthly_challenge, name='month-challenge'),  # /challenges/january/
+]
+```
+
+> Order matters — `<int:month>` must come before `<str:month>`.
+
+### Path Converter Cheatsheet
+
+| Converter | Matches | Example |
+|-----------|---------|---------|
+| `int`     | Digits only, returns Python `int` | `/posts/42/` |
+| `str`     | Any text without slashes (default) | `/user/arifur/` |
+| `slug`    | Lowercase letters, digits, hyphens, underscores | `/posts/my-first-post/` |
+| `uuid`    | UUID format | `/order/550e8400-e29b-41d4-...` |
+| `path`    | Any text including slashes | `/files/docs/report.pdf` |
+
+---
+
+## 6. View Logic with Redirects
+
+### Data Dictionary Pattern
+```python
+# challenges/views.py
+from django.http import HttpResponse, HttpResponseNotFound, HttpResponseRedirect
+from django.urls import reverse
+
+monthly_challenges = {
+    "january":   "Wake up before 7 AM every day",
+    "february":  "Learn Django for at least 20 minutes every day",
+    "march":     "Teach someone what you learned",
+    # ... etc
+}
+```
+
+### Named URL + `reverse()` (Preferred Pattern)
+```python
+def monthly_challenges_by_number(request, month):
+    month_list = list(monthly_challenges.keys())
+
+    if month < 1 or month > len(month_list):
+        return HttpResponseNotFound("This month is not supported!")
+
+    month_name = month_list[month - 1]
+
+    # ✅ Dynamic — survives URL prefix changes
+    redirect_url = reverse('month-challenge', args=[month_name])
+    return HttpResponseRedirect(redirect_url)
+
+def monthly_challenge(request, month):
+    try:
+        challenge_text = monthly_challenges[month]
+        return HttpResponse(challenge_text)
+    except KeyError:
+        return HttpResponseNotFound("This month is not supported!")
+```
+
+> ❌ Avoid: `return HttpResponseRedirect("/challenges/" + month_name)`
+> ✅ Prefer: `reverse("month-challenge", args=[month_name])` — decouples your view logic from URL structure.
+
+---
+
+## 7. Rendering HTML in Views
+
+```python
+def index(request):
+    list_items = ""
+    months = list(monthly_challenges.keys())
+
+    for month in months:
+        capitalized_month = month.capitalize()
+        month_path = reverse("month-challenge", args=[month])
+        list_items += f'<li><a href="{month_path}" target="_blank">{capitalized_month}</a></li>'
+
+    response_data = f"<ul>{list_items}</ul>"
+    return HttpResponse(response_data)
+```
+
+> This is the raw HTML approach. For real projects, move to **Django Templates** (see next section).
+
+---
+
+## 8. Templates (Next Step)
+
+Once views are working, move rendering logic into templates:
+
+```bash
+# Recommended structure
+challenges/
+├── templates/
+│   └── challenges/
+│       ├── index.html
+│       └── challenge.html
+```
+
+```python
+# views.py — with template rendering
+from django.shortcuts import render
+
+def index(request):
+    months = list(monthly_challenges.keys())
+    return render(request, 'challenges/index.html', {'months': months})
+```
+
+```html
+<!-- challenges/templates/challenges/index.html -->
+<ul>
+  {% for month in months %}
+    <li>
+      <a href="{% url 'month-challenge' month %}">{{ month|capfirst }}</a>
+    </li>
+  {% endfor %}
+</ul>
+```
+
+---
+
+## 9. Models & Database
+
+```bash
+# After defining a model in models.py:
+python manage.py makemigrations
+python manage.py migrate
+```
+
+```python
+# challenges/models.py
+from django.db import models
+
+class Challenge(models.Model):
+    month = models.CharField(max_length=20)
+    description = models.TextField()
+
+    def __str__(self):
+        return self.month
+```
+
+---
+
+## 10. Admin Panel
+
+```bash
+python manage.py createsuperuser
+python manage.py runserver
+# Visit: http://127.0.0.1:8000/admin
+```
+
+```python
+# challenges/admin.py
+from django.contrib import admin
+from .models import Challenge
+
+admin.site.register(Challenge)
+```
+
+---
+
+## Quick Reference — Common Commands
+
+| Task | Command |
+|------|---------|
+| Start project | `django-admin startproject myproject` |
+| Start app | `python manage.py startapp appname` |
+| Run server | `python manage.py runserver` |
+| Make migrations | `python manage.py makemigrations` |
+| Apply migrations | `python manage.py migrate` |
+| Create superuser | `python manage.py createsuperuser` |
+| Open Django shell | `python manage.py shell` |
+| Collect static files | `python manage.py collectstatic` |
+
+---
+
+## Mental Model — Request Lifecycle
+
+```
+Browser Request
+      ↓
+myproject/urls.py         ← top-level URL router
+      ↓
+challenges/urls.py        ← app-level URL router (via include())
+      ↓
+views.py → view function  ← logic lives here
+      ↓
+HttpResponse / render()   ← response sent back
+      ↓
+Browser renders response
+```
+
+---
+
+## Key Rules to Never Break
+
+1. **Always activate venv** before running any `pip` or `python manage.py` command.
+2. **Always register the app** in `INSTALLED_APPS` before using models, templates, or signals.
+3. **Always run `makemigrations` then `migrate`** after changing any model.
+4. **Always use `reverse()`** instead of hardcoded URL strings in views.
+5. **Order URL patterns** from most specific to least specific (`<int:x>` before `<str:x>`).
