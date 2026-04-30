@@ -14,5 +14,8 @@ export default {
     cheatsheet: {
         title: 'Cheatsheet',
     },
+    dynamicity: {
+        title: 'Dynamic Routing',
+    },
 
 };
