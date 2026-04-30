@@ -1,0 +1,233 @@
+# Render HTML
+
+## Project Structure
+
+```
+challenges/
+├── views.py
+└── urls.py
+```
+
+---
+
+## Data
+
+The core data is a dictionary mapping lowercase month names to challenge strings.
+
+```python
+monthly_challenges = {
+    "january":   "Wake up before 7 AM every day",
+    "february":  "Learn Django for at least 20 minutes every day",
+    "march":     "Teach someone what you learned",
+    "april":     "Drink 2 liters of water every day",
+    "may":       "Create something and share it",
+    "june":      "Finish one pending task daily",
+    "july":      "Share your learning online",
+    "august":    "Connect with one new person weekly",
+    "september": "No procrastination & Follow a strict work schedule",
+    "october":   "Study one topic deeply & Write a long-form article",
+    "november":  "Help someone without expecting return",
+    "december":  "Document lessons learned & Celebrate achievements",
+}
+```
+
+---
+
+## URL Configuration (`urls.py`)
+
+```python
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("", views.index),
+    path("<int:month>/", views.monthly_challenges_by_number),
+    path("<str:month>/", views.monthly_challenge, name="month-challenge"),
+]
+```
+
+### URL Pattern Summary
+
+| Pattern | View | Name | Example |
+|---|---|---|---|
+| `/` | `index` | — | `/challenges/` |
+| `/<int>/` | `monthly_challenges_by_number` | — | `/challenges/3/` |
+| `/<str>/` | `monthly_challenge` | `month-challenge` | `/challenges/march/` |
+
+> **Order matters.** Django matches URL patterns top-to-bottom. The `<int:month>` path must come before `<str:month>` to avoid integers being captured as strings.
+
+---
+
+## Views (`views.py`)
+
+### Full `views.py`
+
+```python
+from django.http import HttpResponse, HttpResponseNotFound, HttpResponseRedirect
+from django.urls import reverse
+
+monthly_challenges = { ... }  # see Data section above
+
+def index(request):
+    list_items = ""
+    months = list(monthly_challenges.keys())
+
+    for month in months:
+        capitalized_month = month.capitalize()
+        month_path = reverse("month-challenge", args=[month])
+        list_items += f"<li><a href=\"{month_path}\" target='_blank'>{capitalized_month}</a></li>"
+
+    response_data = f"<ul>{list_items}</ul>"
+    return HttpResponse(response_data)
+
+
+def monthly_challenge(request, month):
+    try:
+        challenge_text = monthly_challenges[month]
+        return HttpResponse(challenge_text)
+    except KeyError:
+        return HttpResponseNotFound("This month is not supported!")
+
+
+def monthly_challenges_by_number(request, month):
+    month_list = list(monthly_challenges.keys())
+
+    if month < 1 or month > len(month_list):
+        return HttpResponseNotFound("This month is not supported!")
+
+    month_name = month_list[month - 1]
+    redirect_url = reverse("month-challenge", args=[month_name])
+    return HttpResponseRedirect(redirect_url)
+```
+
+---
+
+### `index(request)`
+
+Renders an HTML page listing all months as clickable links.
+
+**How it works:**
+
+1. Iterates over `monthly_challenges` keys.
+2. Capitalizes each month name for display.
+3. Uses `reverse()` to generate a URL for each month dynamically.
+4. Builds an HTML `<ul>` string and returns it via `HttpResponse`.
+
+**Key concept — building HTML in a view:**
+
+```python
+month_path = reverse("month-challenge", args=[month])
+list_items += f"<li><a href=\"{month_path}\" target='_blank'>{capitalized_month}</a></li>"
+response_data = f"<ul>{list_items}</ul>"
+return HttpResponse(response_data)
+```
+
+> This is a quick approach for learning. In production, use Django templates instead of constructing HTML strings manually.
+
+---
+
+### `monthly_challenge(request, month)`
+
+Returns the challenge text for a given month name (string).
+
+```python
+def monthly_challenge(request, month):
+    try:
+        challenge_text = monthly_challenges[month]
+        return HttpResponse(challenge_text)
+    except KeyError:
+        return HttpResponseNotFound("This month is not supported!")
+```
+
+| Scenario | Response |
+|---|---|
+| Valid month (e.g. `"march"`) | `HttpResponse` with challenge text |
+| Invalid month (e.g. `"xyz"`) | `HttpResponseNotFound` with error message |
+
+---
+
+### `monthly_challenges_by_number(request, month)`
+
+Accepts a numeric month (1–12) and redirects to the named string-based route.
+
+```python
+def monthly_challenges_by_number(request, month):
+    month_list = list(monthly_challenges.keys())
+
+    if month < 1 or month > len(month_list):
+        return HttpResponseNotFound("This month is not supported!")
+
+    month_name = month_list[month - 1]
+    redirect_url = reverse("month-challenge", args=[month_name])
+    return HttpResponseRedirect(redirect_url)
+```
+
+| Scenario | Response |
+|---|---|
+| Valid number (e.g. `3`) | Redirects to `/challenges/march/` |
+| Out-of-range (e.g. `0` or `13`) | `HttpResponseNotFound` |
+
+**Why `month - 1`?** Dictionary keys are zero-indexed in the list, but months are 1-indexed by convention.
+
+---
+
+## Key Django Concepts Used
+
+### `HttpResponse`
+
+Returns a plain 200 response. Accepts any string content, including HTML.
+
+```python
+return HttpResponse("Hello, world")
+return HttpResponse("<h1>Hello</h1>")
+```
+
+### `HttpResponseNotFound`
+
+Returns a 404 response with an optional message body.
+
+```python
+return HttpResponseNotFound("This month is not supported!")
+```
+
+### `HttpResponseRedirect`
+
+Returns a 302 redirect to the given URL.
+
+```python
+return HttpResponseRedirect("/challenges/march/")
+```
+
+### `reverse()`
+
+Generates a URL from a named route, avoiding hardcoded paths.
+
+```python
+from django.urls import reverse
+
+url = reverse("month-challenge", args=["march"])
+# Returns: "/challenges/march/"
+```
+
+> Always prefer `reverse()` over hardcoding URLs — it keeps your code resilient to URL changes.
+
+---
+
+## Routing Flow
+
+```
+GET /challenges/         → index()                      → HTML list of months
+GET /challenges/march/   → monthly_challenge("march")   → Challenge text
+GET /challenges/3/       → monthly_challenges_by_number(3) → 302 → /challenges/march/
+GET /challenges/xyz/     → monthly_challenge("xyz")     → 404
+GET /challenges/99/      → monthly_challenges_by_number(99) → 404
+```
+
+---
+
+## Next Steps
+
+- Replace inline HTML strings with **Django templates** (`.html` files + `render()`).
+- Use `get_object_or_404()` or template tags to clean up error handling.
+- Add a `Challenge` model in `models.py` if challenges need to be stored in a database.
+- Apply CSS by serving **static files** via `django.contrib.staticfiles`.

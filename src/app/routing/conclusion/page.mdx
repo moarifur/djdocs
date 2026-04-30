@@ -1,0 +1,104 @@
+# Section Summary — URLs, Views & Core Concepts
+
+A recap of the foundational Django concepts covered in this module.
+
+---
+
+## URLs and Views (Routes)
+
+URLs and **routes** are two terms for the same concept — the different paths your application responds to (the part after the domain).
+
+```
+/              → home / index
+/posts         → post list
+/posts/some-id → specific post
+```
+
+For each path, you define a **view** — the logic that runs when that URL is visited. Views can be written as functions or as classes (covered later). Every view receives the incoming request and must return a response.
+
+---
+
+## URL Registration
+
+URLs are registered at the **app level** first, then linked to the **project-level** URL config.
+
+```python
+# project/urls.py
+from django.urls import path, include
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("challenges/", include("challenges.urls")),  # prefix → forwards to app URLs
+]
+```
+
+The `"challenges/"` prefix acts as a filter — any request starting with `/challenges/` is forwarded to the `challenges` app's own `urls.py`.
+
+---
+
+## Dynamic vs. Hard-Coded Path Segments
+
+| Type | Example | Use case |
+|---|---|---|
+| Hard-coded | `path("", views.index)` | Exact match only — e.g. the index/home route |
+| Dynamic | `path("<str:month>/", views.monthly_challenge)` | Captures any value and passes it to the view |
+
+Dynamic segments let the same view function handle many different URLs, which is essential for building truly dynamic pages.
+
+---
+
+## View Functions
+
+A view receives the `request` object plus any dynamic URL segments, runs whatever logic is needed, and returns a response.
+
+```python
+def monthly_challenge(request, month):
+    # `month` comes from the dynamic URL segment <str:month>
+    challenge_text = monthly_challenges[month]
+    return HttpResponse(challenge_text)
+```
+
+---
+
+## Response Types
+
+| Response | When to use |
+|---|---|
+| `HttpResponse` | Return content (text, HTML) with a 200 status |
+| `HttpResponseRedirect` | Send the browser to a different URL (302) |
+| `HttpResponseNotFound` | Resource doesn't exist or data is invalid (404) |
+
+These three cover the most common cases you'll encounter.
+
+---
+
+## The `reverse()` Function
+
+Instead of hardcoding URLs as strings, use `reverse()` to build them dynamically from a named route.
+
+```python
+from django.urls import reverse
+
+# In urls.py — give the route a name
+path("<str:month>/", views.monthly_challenge, name="month-challenge")
+
+# In views.py — build the URL by name
+url = reverse("month-challenge", args=["march"])
+# → "/challenges/march/"
+```
+
+Use cases for `reverse()`:
+
+- **Redirects** — pass the result to `HttpResponseRedirect`
+- **HTML links** — embed the URL in a response (e.g. building an `<a href>` in the index view)
+
+---
+
+## What's Coming Next
+
+These fundamentals will always matter as the project grows. Upcoming topics build directly on them:
+
+- Extracting data from incoming requests
+- Sending back real HTML using **templates** (HTML stored in separate files)
+- Talking to a **database**
+- Building views as **classes**

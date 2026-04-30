@@ -17,5 +17,10 @@ export default {
     dynamicity: {
         title: 'Dynamic Routing',
     },
-
+    htmlinviews: {
+        title: 'Renders an HTML page',
+    },
+    conclusion: {
+        title: 'Section Summary',
+    },
 };
