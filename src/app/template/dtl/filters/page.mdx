@@ -1,0 +1,73 @@
+import { Callout } from 'nextra/components'
+
+# Template Filters
+
+Filters let you transform values directly inside your templates using a simple pipe syntax. The goal is to keep display and formatting logic in the template — and keep your view focused on business logic.
+
+### Syntax
+
+```django
+{{ variable_name | filter_name }}
+```
+
+You can also chain multiple filters:
+
+```django
+{{ variable_name | filter_one | filter_two }}
+```
+
+Filters work anywhere interpolation is used — including inside HTML attribute values:
+
+```django
+<title>{{ month_name | title }}</title>
+<meta name="description" content="{{ description | truncatewords:20 }}">
+```
+
+### Built-in Filters Reference
+
+| Filter | Description | Example |
+|---|---|---|
+| `title` | Capitalizes the first letter of each word | `{{ month \| title }}` |
+| `lower` | Converts the string to lowercase | `{{ name \| lower }}` |
+| `upper` | Converts the string to uppercase | `{{ name \| upper }}` |
+| `add` | Adds a value to the variable | `{{ count \| add:"5" }}` |
+| `truncatewords` | Truncates after N words | `{{ bio \| truncatewords:30 }}` |
+| `date` | Formats a date object | `{{ created_at \| date:"Y-m-d" }}` |
+| `default` | Fallback if the value is falsy | `{{ name \| default:"Anonymous" }}` |
+| `length` | Returns the length of the value | `{{ items \| length }}` |
+
+<Callout type="info">
+    This table covers the most commonly used filters. The full list is available in the [official Django built-in filter reference](https://docs.djangoproject.com/en/stable/ref/templates/builtins/#built-in-filter-reference).
+</Callout>
+
+### Practical Example
+
+Instead of capitalizing in the view:
+
+```python filename="views.py"
+# Not ideal — formatting logic in the view
+context = {
+    "month": month_name.capitalize()
+}
+```
+
+Do it in the template:
+
+```django filename="challenge.html"
+<!-- Better — formatting stays in the template -->
+<h1>{{ month | title }}</h1>
+```
+Where views.py will be:
+
+```python filename="views.py"
+# This is ideal
+context = {
+    "month": month_name
+}
+```
+
+<Callout type="default">
+    **Best practice:** Use the view for data fetching and transformation. Use filters in the template for display and formatting. This keeps your view lean and your template self-contained.
+</Callout>
+
+---

@@ -1,10 +1,10 @@
 export default {
-    index: {
-        title: 'Intro',
+    workflows: {
+        title: '⚙️ Workflow',
         type: 'page'
     },
-    workflows: {
-        title: 'Development Workflow',
+    index: {
+        title: 'Intro',
         type: 'page'
     },
     fundamentals: {
@@ -13,6 +13,10 @@ export default {
     },
     routing: {
         title: 'Routes to Responses',
+        type: 'page'
+    },
+    template: {
+        title: 'Templates in Action',
         type: 'page'
     },
 

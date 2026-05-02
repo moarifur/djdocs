@@ -1,0 +1,451 @@
+---
+title: Static Files & CSS
+description: Learn how to serve CSS, JavaScript, and image files in Django using the static files system — covering app-level and project-level static files, the load static tag, and the static tag.
+---
+
+import { Callout, FileTree } from 'nextra/components'
+
+# Static Files & CSS
+
+Templates handle dynamic content — variables, loops, conditionals. **Static files** handle everything that doesn't change: CSS stylesheets, JavaScript files, and images. This guide covers how Django discovers, serves, and links static files in your templates.
+
+---
+
+## What Are Static Files?
+
+Static files are assets that are served to the browser exactly as they are — the server does not modify or evaluate them. This is in contrast to templates, which are parsed and rendered before being sent.
+
+| File type | Dynamic? | Example |
+|---|---|---|
+| Templates (`.html`) | Yes — DTL is evaluated server-side | `challenge.html` |
+| CSS (`.css`) | No — served as-is | `challenges.css` |
+| JavaScript (`.js`) | No — served as-is | `app.js` |
+| Images (`.png`, `.jpg`) | No — served as-is | `logo.png` |
+
+---
+
+## File Structure
+
+Django distinguishes between **app-level** static files (specific to one app) and **project-level** static files (shared across all apps). Both follow the same naming convention as templates — a nested sub-folder repeating the app name prevents file name collisions.
+
+<FileTree>
+    <FileTree.Folder name="my_project" defaultOpen>
+        <FileTree.Folder name="static" defaultOpen>
+            <FileTree.File name="styles.css" />
+        </FileTree.Folder>
+        <FileTree.Folder name="templates">
+            <FileTree.File name="base.html" />
+        </FileTree.Folder>
+        <FileTree.Folder name="challenges" defaultOpen>
+            <FileTree.Folder name="static" defaultOpen>
+                <FileTree.Folder name="challenges" defaultOpen>
+                    <FileTree.File name="challenges.css" />
+                    <FileTree.Folder name="includes">
+                        <FileTree.File name="header.css" />
+                    </FileTree.Folder>
+                </FileTree.Folder>
+            </FileTree.Folder>
+            <FileTree.Folder name="templates">
+                <FileTree.Folder name="challenges">
+                    <FileTree.File name="index.html" />
+                    <FileTree.File name="challenge.html" />
+                </FileTree.Folder>
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+<Callout type="info">
+    The nested `challenges/` sub-folder inside `static/` mirrors the same pattern used for templates. It prevents name collisions if multiple apps each have a file named `styles.css`.
+</Callout>
+
+---
+
+## Configuration
+
+### App-level static files — no extra config needed
+
+Django automatically looks for a `static/` folder inside each registered app. If your CSS file lives in `challenges/static/challenges/challenges.css`, Django finds it with no additional setup.
+
+### Project-level static files — register in `settings.py`
+
+Django does **not** automatically look for a `static/` folder at the root project level. You need to register it explicitly using `STATICFILES_DIRS`.
+
+```python filename="settings.py"
+# Django serves static files under this URL prefix
+STATIC_URL = '/static/'
+
+# Tell Django to also look in the project-level static/ folder
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+```
+
+<Callout type="warning">
+    `STATIC_URL` does not tell Django *where* to find static files — it only defines the URL prefix under which they are served (e.g. `/static/styles.css`). The actual folder registration is handled by `STATICFILES_DIRS`.
+</Callout>
+
+### Verify `django.contrib.staticfiles` is installed
+
+Check that `INSTALLED_APPS` in `settings.py` includes `django.contrib.staticfiles`. This should be present by default — do not remove it.
+
+```python filename="settings.py"
+INSTALLED_APPS = [
+    # ...
+    'django.contrib.staticfiles',
+    # ...
+]
+```
+
+### Fix for development in `settings.py`
+
+If DEBUG = False, Django expects a real web server to handle static files. So for the development, we've to do this
+
+```python filename="settings.py"
+DEBUG = True
+```
+
+#####
+<Callout type="info">
+    In production, DON’T use Django for static files, instead use something like:
+
+    - Nginx
+    - Apache
+    - or a CDN
+
+</Callout>
+
+
+---
+
+## Using Static Files in Templates
+
+Loading and referencing static files in templates requires two steps: loading the static plugin, then using the `{% static %}` tag to build the path.
+
+### Step 1 — Load the static plugin
+
+At the top of your template (directly after `{% extends %}` if you're using inheritance), add:
+
+```django
+{% load static %}
+```
+
+This makes the `{% static %}` tag available in the current template. Without it, using `{% static %}` will raise an error.
+
+### Step 2 — Reference a static file with `{% static %}`
+
+Use `{% static 'path/to/file' %}` to generate the correct URL to a static asset:
+
+```django
+<link rel="stylesheet" href="{% static 'challenges/challenges.css' %}">
+```
+
+The path you pass to `{% static %}` is relative to the `static/` folder — in this case, `challenges/static/challenges/challenges.css`.
+
+<Callout type="default">
+    `{% static %}` works like `{% url %}` for URL patterns — it constructs the correct path for you so you don't have to hard-code it. This makes your templates portable and deployment-safe.
+</Callout>
+
+### Step 3 — Check `base.html` is installed
+
+Open your base template and make sure inside `<head>` you have:
+
+```python filename="myproject/templates/base.html"
+<head>
+    ...
+    {% block css_files %}{% endblock %}
+</head>
+```
+👉 If this is missing → your CSS is never inserted into the page
+
+
+---
+
+## App-Level CSS
+
+App-level static files live inside the app's `static/appname/` folder and are automatically discovered by Django.
+
+### 1. Create the CSS file
+
+```css filename="challenges/static/challenges/challenges.css"
+ul {
+  list-style: none;
+  margin: 2rem auto;
+  width: 90%;
+  max-width: 20rem;
+  background-color: #f5f5f5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  padding: 1rem;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  height: 30rem;
+}
+
+li {
+  margin: 1rem 0;
+  text-align: center;
+  font-size: 1.5rem;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 1rem;
+}
+
+li:last-of-type,
+li:nth-of-type(6) {
+  border-bottom: none;
+}
+
+li a {
+  text-decoration: none;
+  color: #333;
+}
+
+li a:hover,
+li a:active {
+  color: #9f00ff;
+}
+```
+
+### 2. Load and link the file in the template
+
+Add `{% load static %}` directly after `{% extends %}`, then inject the `<link>` tag inside the `css_files` block:
+
+```django filename="challenges/templates/challenges/index.html"
+{% extends 'base.html' %}
+{% load static %}
+
+{% block css_files %}
+  <link rel="stylesheet" href="{% static 'challenges/challenges.css' %}">
+{% endblock %}
+
+{% block page_title %}All Challenges{% endblock %}
+
+{% block content %}
+  {% include 'challenges/includes/header.html' %}
+  <ul>
+    {% for month in months %}
+      <li>
+        <a href="{% url 'month-challenge' month %}">{{ month | title }}</a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}
+```
+
+### 3. Restart the development server
+
+New static files are only detected after a server restart. Stop the server and start it again:
+
+```bash
+python manage.py runserver
+```
+
+<Callout type="warning">
+    Skipping the restart is the most common reason styles don't appear after adding a new static file. Always restart when adding a file for the first time — file *changes* are picked up automatically, but new files are not.
+</Callout>
+---
+
+## Project-Level CSS
+
+For styles that apply across the entire project, use the root-level `static/` folder and link the file from `base.html` so it loads on every page.
+
+### 1. Create the global stylesheet
+
+```css filename="static/styles.css"
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap');
+
+html {
+  font-family: 'Roboto Condensed', sans-serif;
+}
+
+body {
+  background-color: #1a1a1a;
+  margin: 0;
+}
+```
+
+### 2. Register the folder in `settings.py`
+
+```python filename="settings.py"
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+```
+
+### 3. Load and link it in `base.html`
+
+Add `{% load static %}` at the very top of the file — before `<!DOCTYPE html>`. Because `base.html` is inherited by all templates, a stylesheet linked here automatically applies everywhere.
+
+```python filename="templates/base.html"
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block page_title %}My Challenges{% endblock %}</title>
+
+    <link rel="stylesheet" href="{% static 'styles.css' %}">
+    {% block css_files %}{% endblock %}
+  </head>
+  <body>
+    {% block content %}{% endblock %}
+  </body>
+</html>
+```
+
+The global stylesheet loads first. The `{% block css_files %}` block that follows lets individual templates inject their own additional stylesheets on top.
+
+<Callout type="default">
+    **Load order matters.** Place your global stylesheet *before* the `css_files` block so app-specific styles can override the global ones if needed.
+</Callout>
+---
+
+## CSS for Includes (Partials)
+
+You can create CSS files that correspond to your HTML partials. Link them from the templates that use the partial — not from inside the partial file itself.
+
+### 1. Create the header stylesheet
+
+```css filename="challenges/static/challenges/includes/header.css"
+header {
+  width: 100%;
+  height: 5rem;
+  background-color: #2b2b2b;
+}
+
+header nav {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+header nav a {
+  color: white;
+  font-size: 2rem;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+header nav a:hover,
+header nav a:active {
+  color: #ff80ff;
+}
+```
+
+### 2. Link it from the templates that use the partial
+
+```python filename="challenges/templates/challenges/index.html"
+{% extends 'base.html' %}
+{% load static %}
+{% block css_files %}
+    <link rel="stylesheet" href="{% static 'challenges/includes/header.css' %}">
+    <link rel="stylesheet" href="{% static 'challenges/challenge.css' %}">
+{% endblock %}
+
+{% block page_title %}
+    {{ month | title }} Challenge
+{% endblock %}
+
+{% block content %}
+    {% include 'challenges/includes/header.html' %}
+    <h1>The {{ month | title }} Challenge</h1>
+    {% if text %}
+        <h2>{{ text }}</h2>
+    {% else %}
+        <p class="fallback">There is no challenge for {{ month | title }} yet.</p>
+    {% endif %}
+{% endblock %}
+```
+
+<Callout type="warning">
+    CSS is always global in scope — styles in `header.css` will affect any matching element anywhere on the page, not just the header partial. Use class or ID selectors to scope styles when needed.
+</Callout>
+---
+
+## Challenge Page CSS
+
+For the individual challenge page, create a separate stylesheet and link it from `challenge.html`.
+
+### 1. Create the stylesheet
+
+```css filename="challenges/static/challenges/challenge.css"
+h1,
+h2 {
+  text-align: center;
+  color: white;
+}
+
+h1 {
+  font-size: 1.5rem;
+  font-weight: normal;
+  margin: 2rem 0 1rem 0;
+  color: #ff80ff;
+}
+
+h2 {
+  font-size: 3rem;
+  font-weight: bold;
+}
+
+.fallback {
+  text-align: center;
+  color: white;
+}
+```
+
+### 2. Link it from `challenge.html`
+
+```python filename="challenges/templates/challenges/challenge.html"
+{% extends 'base.html' %}
+{% load static %}
+{% block css_files %}
+    <link rel="stylesheet" href="{% static 'challenges/includes/header.css' %}">
+    <link rel="stylesheet" href="{% static 'challenges/challenge.css' %}">
+{% endblock %}
+
+{% block page_title %}
+    {{ month | title }} Challenge
+{% endblock %}
+
+{% block content %}
+    {% include 'challenges/includes/header.html' %}
+    <h1>The {{ month | title }} Challenge</h1>
+    {% if text %}
+        <h2>{{ text }}</h2>
+    {% else %}
+        <p class="fallback">There is no challenge for {{ month | title }} yet.</p>
+    {% endif %}
+{% endblock %}
+```
+
+---
+
+## Troubleshooting
+
+| Issue | Likely cause | Fix |
+|---|---|---|
+| `404` when loading a static file | Server not restarted after adding the file | Stop and restart `python manage.py runserver` |
+| `{% static %}` raises `TemplateSyntaxError` | `{% load static %}` is missing | Add `{% load static %}` directly after `{% extends %}` |
+| Project-level static file not found | `STATICFILES_DIRS` not configured | Add `BASE_DIR / "static"` to `STATICFILES_DIRS` in `settings.py` |
+| App-level static file not found | Wrong folder structure | Path must be `appname/static/appname/file.css` — the nested sub-folder is required |
+| CSS applies globally when it shouldn't | Tag-based selectors | Use class selectors (`.header-nav`) instead of element selectors (`nav`) |
+| Styles not updating after a change | Browser cache | Hard refresh with `Ctrl+Shift+R` / `Cmd+Shift+R` |
+
+---
+
+## Summary
+
+| Concept | Detail |
+|---|---|
+| App-level static files | Stored in `appname/static/appname/` — discovered automatically |
+| Project-level static files | Stored in root `static/` — must register with `STATICFILES_DIRS` |
+| Load the static plugin | `{% load static %}` — required before using `{% static %}`, placed after `{% extends %}` |
+| Reference a static file | `{% static 'path/to/file.css' %}` — generates the correct URL |
+| Global stylesheet | Link from `base.html` above the `css_files` block |
+| Per-template stylesheet | Inject via `{% block css_files %}` in child templates |
+
+For the complete static files reference, see the [official Django static files documentation](https://docs.djangoproject.com/en/stable/howto/static-files/).

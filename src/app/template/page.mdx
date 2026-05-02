@@ -1,0 +1,311 @@
+# Django Templates & Static Files
+
+## Overview
+
+Up to this point, we've learned how to work with URLs and views in Django and built a basic website. While functional, the approach of returning raw HTML strings from view functions has several problems that this module addresses.
+
+The current output is not visually appealing, not structured as a proper HTML document, and not scalable for real-world applications.
+
+---
+
+## Problems with Inline HTML in Views
+
+When constructing HTML directly inside view functions — for example, building `<li>` and `<a>` tags inside a Python string like this:
+
+```python
+return HttpResponse("<ul><li>...</li></ul>")
+```
+
+You run into the following issues:
+
+**Poor HTML structure** — The output lacks key structural elements like `<!DOCTYPE>`, `<head>`, and metadata needed for SEO optimization.
+
+**Hard to maintain** — Constructing complex HTML inside Python strings is impractical. Imagine building an e-commerce page with navigation, products, and a footer this way — it would quickly become unmanageable.
+
+**Mixing logic with presentation** — Markup and Python logic are tightly coupled, making both harder to read and maintain.
+
+---
+
+## What This Module Covers
+
+This module introduces two core Django features:
+
+- **Templates** — Standalone HTML files with dynamic content support
+- **Static files** — CSS, JavaScript, and images to style the site
+
+You will learn the Django Template Language (DTL), how to configure template discovery, and how to wire everything together cleanly.
+
+---
+
+## Part 1: What Are Templates?
+
+A template is a standard HTML file that holds markup and can also render dynamic content. Instead of building HTML tags inside `views.py`, you move that presentation logic into dedicated HTML documents.
+
+This follows the **Separation of Concerns (SoC)** principle — keeping logic and presentation in their own layers.
+
+---
+
+## Part 2: Template Folder Structure
+
+Django follows a strict convention for where template files should live.
+
+### Recommended Structure
+
+```
+<project_folder>/
+└── <app_folder>/           ← e.g., challenges/
+    └── templates/          ← must be named exactly "templates"
+        └── <app_folder>/   ← e.g., challenges/ (nested, same name as app)
+            └── challenge.html
+```
+
+### Why the Nested Folder?
+
+The inner `challenges/` folder inside `templates/` exists to **prevent naming conflicts**. When Django discovers templates from multiple apps, namespacing them under the app name avoids ambiguity. For example, two apps might both have an `index.html` — the nested folder makes them distinguishable as `app_one/index.html` and `app_two/index.html`.
+
+---
+
+## Part 3: Creating Your First Template
+
+Inside `challenges/templates/challenges/`, create `challenge.html`.
+
+In VS Code, you can scaffold the HTML5 boilerplate by typing `html` and selecting the **HTML5** autocomplete suggestion (`html:5`):
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Challenge</title>
+</head>
+<body>
+    <h1>This Month's Challenge</h1>
+    <h2>Go for a walk for at least 20 minutes every day.</h2>
+</body>
+</html>
+```
+
+This gives you a well-structured HTML document with doctype, head, and body — far better than the raw string approach. The content above is hardcoded for now, but you'll inject dynamic data shortly.
+
+---
+
+## Part 4: Rendering Templates in Views
+
+### Using `render_to_string`
+
+Django provides a utility function that reads an HTML template file and converts its contents to a string, which can then be sent back as an HTTP response.
+
+**Step 1 — Import:**
+
+```python
+from django.template.loader import render_to_string
+from django.http import HttpResponse
+```
+
+**Step 2 — Use in your view:**
+
+```python
+def monthly_challenge(request, month):
+    # ... your logic here
+    response_data = render_to_string("challenges/challenge.html")
+    return HttpResponse(response_data)
+```
+
+**Important:** Always reference the template using the `<app_name>/<filename>` path — for example, `"challenges/challenge.html"` — not just the filename alone. This is precisely why the nested folder structure exists.
+
+---
+
+## Part 5: Configuring Django to Find Templates
+
+### The `TEMPLATES` Setting
+
+Django's template discovery is configured in `settings.py` under the `TEMPLATES` list. Two key options control how Django locates template files:
+
+| Option | Description |
+|--------|-------------|
+| `DIRS` | A list of absolute directory paths Django should search for templates |
+| `APP_DIRS` | When `True`, Django automatically searches for a `templates/` folder inside each registered app |
+
+### Option A — Using `DIRS` (Manual, not recommended for app-specific templates)
+
+You can manually point Django to your template folder:
+
+```python
+# settings.py
+TEMPLATES = [
+    {
+        ...
+        'DIRS': [BASE_DIR / 'challenges' / 'templates'],
+        'APP_DIRS': False,
+        ...
+    }
+]
+```
+
+`BASE_DIR` is a helper variable already defined in `settings.py` that points to your project root. You build sub-paths from it using the `/` operator (Python's `pathlib` syntax).
+
+**Downside:** You must update `DIRS` every time you add a new app. This approach does not scale well.
+
+### Option B — Using `APP_DIRS` (Recommended)
+
+The better approach is to keep `APP_DIRS: True` (the default) and register your app in `INSTALLED_APPS`. Django will then automatically discover the `templates/` folder inside any registered app.
+
+```python
+# settings.py
+TEMPLATES = [
+    {
+        ...
+        'DIRS': [],        # Keep empty
+        'APP_DIRS': True,  # Already True by default
+        ...
+    }
+]
+```
+
+---
+
+## Part 6: Registering Your App
+
+For `APP_DIRS` to work, your app must be officially registered in `INSTALLED_APPS`. Without this step, Django is not fully aware of your app and will not scan it for templates.
+
+```python
+# settings.py
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'challenges',  # ← Add your app here
+]
+```
+
+The string must match your **app folder name** and the `name` attribute defined in your app's `apps.py` file.
+
+Once registered, Django will look inside `challenges/templates/` automatically — no need to manually configure `DIRS`.
+
+The built-in entries you see in `INSTALLED_APPS` (like `admin`, `auth`, `contenttypes`) are Django's own internal modules. This reinforces that apps don't have to be large standalone products — they are modular units of a project.
+
+---
+
+## Part 7: How Template Discovery Works
+
+When you call `render_to_string("challenges/challenge.html")`, Django executes the following steps:
+
+1. Loops through all apps listed in `INSTALLED_APPS`
+2. For each app, checks whether a `templates/` folder exists
+3. Within those folders, searches for the path `challenges/challenge.html`
+4. Returns the first match found
+
+If no match is found, Django raises a `TemplateDoesNotExist` error and shows a list of all directories it searched — a useful debugging tool.
+
+---
+
+## Part 8: Global vs. App-Specific Templates
+
+| Template Type | Where to Store | How to Configure |
+|---------------|----------------|-----------------|
+| App-specific | `<app>/templates/<app>/` | Use `APP_DIRS: True` + register app |
+| Global (shared across apps) | Any folder outside an app | Add path to `DIRS` in `settings.py` |
+
+For global templates used by multiple apps — such as a shared base layout — you can add the folder path to `DIRS`. For everything else, the `APP_DIRS` approach is best practice: it keeps your settings lean and makes your project modular.
+
+---
+
+## Part 9: The Full Request-to-Response Flow
+
+```
+User hits a URL
+      ↓
+Django calls the view
+      ↓
+View calls render_to_string()
+      ↓
+Django locates the template file
+      ↓
+Template content returned as a string
+      ↓
+HttpResponse sends HTML to browser
+      ↓
+Browser renders the page
+```
+
+---
+
+## Part 10: Debugging Story — The "TemplateDoesNotExist" Mystery
+
+While integrating templates into the project, everything appeared to be set up correctly:
+
+- The template file was created at `challenges/templates/challenges/challenge.html`
+- The `challenges` app was added to `INSTALLED_APPS`
+- The view was using `render_to_string("challenges/challenge.html")`
+
+Yet, when visiting `http://127.0.0.1:8000/challenges/january/`, Django threw:
+
+```
+TemplateDoesNotExist: challenges/challenge.html
+```
+
+### Investigation
+
+The error message revealed something interesting: Django only searched inside built-in apps like `admin` and `auth`, completely ignoring the `challenges` app.
+
+This raised questions:
+
+- Was the template path wrong?
+- Was the folder structure incorrect?
+- Was `INSTALLED_APPS` misconfigured?
+
+Everything was double-checked — and surprisingly, everything was correct. This led to a frustrating situation: *"If everything is correct… why is Django not finding the template?"*
+
+This is a common moment where developers start overthinking or changing working code unnecessarily.
+
+### The Fix
+
+The solution turned out to be unexpectedly simple:
+
+```bash
+CTRL + C
+python manage.py runserver
+```
+
+After restarting the development server, the template loaded perfectly.
+
+### What Actually Happened
+
+Django's development server behaves differently depending on what changes:
+
+| Change Type | Auto-Reload |
+|-------------|------------|
+| Python file changes (`.py`) | ✅ Yes, automatically |
+| New folders or structural changes | ❌ No, requires manual restart |
+
+Since a new `templates/` directory was added, Django's file watcher didn't pick it up until the server was restarted.
+
+### The Lesson
+
+Sometimes the issue is not in your code — it's in the environment state. Before diving deep into debugging, follow this order:
+
+1. **Restart the server** — clear any stale state
+2. **Recheck the error** — read the message carefully
+3. **Then investigate** — dig into configuration and code
+
+**Pro Tip:** Make this a habit — *"If something should work but doesn't, restart first."* It can save a surprising amount of time and prevent unnecessary changes to code that was never broken.
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| Templates | Standalone HTML files with optional dynamic content — far better than inline HTML strings |
+| File structure | Place templates in `<app>/templates/<app>/` |
+| `render_to_string` | Converts a template file to a string for use in HTTP responses |
+| `APP_DIRS: True` | Enables automatic template discovery inside registered apps |
+| `INSTALLED_APPS` | Must include your app for `APP_DIRS` to find its templates |
+| Server restart | Required after adding new folders — the dev server doesn't auto-detect structural changes |
+| Static files | CSS, JavaScript, and images are added in the next steps to improve styling |
+
+**Best Practice:** Always use `APP_DIRS: True` for app-specific templates and register your app in `INSTALLED_APPS`. Reserve `DIRS` only for truly global or shared templates.

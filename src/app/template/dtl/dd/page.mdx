@@ -1,0 +1,123 @@
+# Injecting dynamic data with the context dictionary
+
+Templates become useful when they render dynamic content. Pass a context dictionary as the third argument to `render()` — every key becomes a variable available inside the template.
+
+### Step 1 — Pass context from the view
+
+Add a dictionary as the third argument to `render()`:
+
+```python
+def monthly_challenge(request, month):
+    challenge_text = monthly_challenges[month]
+    return render(request, "challenges/challenge.html", {
+        "text": challenge_text,
+        "month": month.capitalize(),
+    })
+```
+
+### Step 2 — Reference keys in the template
+
+Use double curly braces `{{ }}` — the DTL placeholder syntax — to output a context value:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ month }} Challenge</title>
+</head>
+<body>
+  <h1>{{ month }} Challenge</h1>
+  <p>{{ text }}</p>
+</body>
+</html>
+```
+
+Django evaluates every `{{ key }}` placeholder on the server before sending HTML to the browser. The browser only ever receives the rendered output — it never sees DTL syntax.
+
+---
+
+## How it works — server-side rendering flow
+
+The full lifecycle for a dynamic page:
+
+```
+Browser request
+  → Django URL router
+    → View function builds context dict
+      → render(request, template_path, context)
+        → Django parses template, replaces {{ }} placeholders
+          → Final HTML string returned as HttpResponse
+            → Browser receives plain HTML (no DTL visible)
+```
+
+The Django template language is entirely server-side. No special client-side tooling is needed — the browser sees only finished HTML.
+
+---
+
+## Quick reference
+
+| Rule | Detail |
+|------|--------|
+| Template namespace | Always place files at `templates/<app_name>/your_file.html` |
+| Import | `from django.shortcuts import render` |
+| Render signature | `render(request, "app/template.html", context_dict)` |
+| Output a variable | `{{ variable_name }}` in the template |
+| Context keys | Map directly to DTL variable names |
+
+---
+
+## Practice exercise
+
+Update your template so the `<title>` tag and the `<h1>` heading both display the current month's name dynamically — for example, *April Challenge* or *June Challenge* — instead of hard-coded text.
+
+**Hint:** Add a `"month"` key to your context dictionary in the view, then reference `{{ month }}` in both places in the template.
+
+### Solution
+
+**`views.py`**
+
+```python
+from django.shortcuts import render
+
+monthly_challenges = {
+    "january" : "Wake up before 7 AM every day",
+    "february" : "Learn Django for at least 20 minutes every day",
+    "march" : "Teach someone what you learned",
+    "april" : "Drink 2 liters of water every day",
+    "may" : "Create something and share it",
+    "june" : "Finish one pending task daily",
+    "july" : "Share your learning online",
+    "august" : "Connect with one new person weekly",
+    "september" : "No procrastination & Follow a strict work schedule",
+    "october" : "Study one topic deeply & Write a long-form article",
+    "november" : "Help someone without expecting return",
+    "december" : "Document lessons learned & Celebrate achievements",
+}
+
+def monthly_challenge(request, month):
+    try:
+        challenge_text = monthly_challenges[month]
+        return render(request, "challenges/challenge.html", {
+            "text": challenge_text,
+            "month": month.capitalize(),
+        })
+    except KeyError:
+        return HttpResponseNotFound("<h1>This month is not supported!</h1>")
+
+```
+
+**`challenges/templates/challenges/challenge.html`**
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ month }} Challenge</title>
+</head>
+<body>
+  <h1>{{ month }} Challenge</h1>
+  <p>{{ text }}</p>
+</body>
+</html>
+```

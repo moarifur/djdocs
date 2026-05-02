@@ -1,0 +1,59 @@
+import { Callout, Steps, Tabs } from 'nextra/components'
+
+# VS Code Setup — Django Extension
+
+By default, VS Code treats DTL syntax as plain text. There's no syntax highlighting, no autocomplete, and no warnings for typos like a missing curly brace or misspelled filter name.
+
+### Install the Extension
+
+<Steps>
+
+    ### Open the Extensions panel
+
+    Press `Ctrl+Shift+X` (Windows/Linux) or `Cmd+Shift+X` (Mac) to open the Extensions panel.
+
+    ### Search and install
+
+    Search for **Django** and install the extension by **Baptiste Darthenay**.
+
+    ### Configure VS Code settings
+
+    Open your VS Code settings JSON file:
+
+    ```
+    Ctrl+Shift+P → "Open Settings JSON"
+    ```
+
+    Copy the configuration snippet from the extension's usage instructions page and paste it into your `settings.json`. This tells VS Code to associate `.html` template files with the Django template language.
+
+    ### Verify it's working
+
+    Reopen any template file. You should now see:
+    - Syntax highlighting for `{{ }}` and `{% %}`
+    - Distinct color for filters and the pipe symbol
+    - Immediate visual feedback when syntax is broken (e.g. missing a curly brace — the coloring disappears)
+
+</Steps>
+
+### Before vs After
+
+<Tabs items={['Without extension', 'With extension']}>
+    <Tabs.Tab>
+        - DTL syntax treated as plain text — no colors
+        - Typos and syntax errors silently ignored
+        - No autocomplete for tag or filter names
+        - Only discover errors at runtime
+    </Tabs.Tab>
+    <Tabs.Tab>
+        - Full syntax highlighting for `{{ }}`, `{% %}`, filters, and tags
+        - Broken syntax immediately loses color — visible at a glance
+        - Autocomplete suggestions for built-in tags and filters
+        - Catch mistakes while writing, not while running
+    </Tabs.Tab>
+</Tabs>
+
+<Callout type="default">
+    This extension is not required for Django to work, but it meaningfully improves the development experience. It's a recommended install for any Django project.
+</Callout>
+
+---

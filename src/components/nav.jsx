@@ -1,40 +1,51 @@
 import { Navbar } from 'nextra-theme-docs'
 import Image from 'next/image'
 
+const BookIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Left page */}
+        <path d="M10 20 C30 10, 50 10, 60 20 L60 100 C50 90, 30 90, 10 100 Z" fill="#4F46E5" />
+
+        {/* Right page */}
+        <path d="M60 20 C70 10, 90 10, 110 20 L110 100 C90 90, 70 90, 60 100 Z" fill="#6366F1" />
+
+        {/* Spine */}
+        <line x1="60" y1="20" x2="60" y2="100" stroke="#312E81" strokeWidth="2" />
+
+        {/* Page lines */}
+        <line x1="20" y1="40" x2="50" y2="40" stroke="white" strokeWidth="2" />
+        <line x1="20" y1="55" x2="50" y2="55" stroke="white" strokeWidth="2" />
+        <line x1="70" y1="40" x2="100" y2="40" stroke="white" strokeWidth="2" />
+        <line x1="70" y1="55" x2="100" y2="55" stroke="white" strokeWidth="2" />
+    </svg>
+)
+
 const Nav = () => {
     return (
-        <>
-            <Navbar
-                logo={
-                    <>
-                        <Image
-                            src="/logo.svg"
-                            alt="LumiLearn"
-                            width={24}
-                            height={24}
-                        />
-                        <span style={{ marginLeft: '.4em', fontWeight: 800 }}> djDocs </span>
-                    </>
-                }
+        <Navbar
+            logo={
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4em' }}>
+                    <Image src="/logo.svg" alt="djDocs" width={24} height={24} />
+                    <span style={{ fontWeight: 800 }}>djDocs</span>
+                    {/* Book SVG added here */}
+                    <BookIcon />
+                </div>
+            }
+            projectLink="https://github.com/moarifur/djdocs"
+            projectIcon={
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 256 256">
+                    <path d="m231.9 169.8l-94.8 65.6a15.7 15.7 0 0 1-18.2 0l-94.8-65.6a16.1 16.1 0 0 1-6.4-17.3L45 50a12 12 0 0 1 22.9-1.1L88.5 104h79l20.6-55.1A12 12 0 0 1 211 50l27.3 102.5a16.1 16.1 0 0 1-6.4 17.3Z" />
+                </svg>
+            }
+            chatLink="https://x.com/moarifur"
+            chatIcon={
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1227" width="24" height="24" fill="currentColor">
+                    <path d="M714.163 519.284L1160.89 0H1055.06L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.83L515.514 749.078L842.672 1226.37H1200L714.137 519.284H714.163Z" />
+                </svg>
+            }
 
-                projectLink="https://gitlab.com/inkscape/inkscape"
-                projectIcon={
-                    <svg width="24" height="24" fill="currentColor" viewBox="0 0 256 256">
-                        <path d="m231.9 169.8l-94.8 65.6a15.7 15.7 0 0 1-18.2 0l-94.8-65.6a16.1 16.1 0 0 1-6.4-17.3L45 50a12 12 0 0 1 22.9-1.1L88.5 104h79l20.6-55.1A12 12 0 0 1 211 50l27.3 102.5a16.1 16.1 0 0 1-6.4 17.3Z" />
-                    </svg>
-                }
-                chatLink="https://twitter.com/shuding_"
-                chatIcon={
-                    <svg width="24" height="24" viewBox="0 0 248 204">
-                        <path
-                            fill="currentColor"
-                            d="M221.95 51.29c.15 2.17.15 4.34.15 6.53 0 66.73-50.8 143.69-143.69 143.69v-.04c-27.44.04-54.31-7.82-77.41-22.64 3.99.48 8 .72 12.02.73 22.74.02 44.83-7.61 62.72-21.66-21.61-.41-40.56-14.5-47.18-35.07a50.338 50.338 0 0 0 22.8-.87C27.8 117.2 10.85 96.5 10.85 72.46v-.64a50.18 50.18 0 0 0 22.92 6.32C11.58 63.31 4.74 33.79 18.14 10.71a143.333 143.333 0 0 0 104.08 52.76 50.532 50.532 0 0 1 14.61-48.25c20.34-19.12 52.33-18.14 71.45 2.19 11.31-2.23 22.15-6.38 32.07-12.26a50.69 50.69 0 0 1-22.2 27.93c10.01-1.18 19.79-3.86 29-7.95a102.594 102.594 0 0 1-25.2 26.16z"
-                        />
-                    </svg>
-                }
-            />
-        </>
-    );
-};
+        />
+    )
+}
 
-export default Nav;
+export default Nav

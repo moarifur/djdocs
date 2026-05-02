@@ -1,0 +1,196 @@
+---
+title: Template Includes & 404 Pages
+description: Learn how to use the include tag to reuse HTML snippets across templates, pass context to partials, and set up a custom 404 error page in Django.
+---
+
+import { Callout, FileTree } from 'nextra/components'
+
+---
+# Template Includes & 404 Pages
+
+This guide covers two final but essential template features: **includes** (also called partials) for reusing HTML snippets across templates without full inheritance, and **custom 404 pages** for handling not-found errors gracefully.
+
+---
+
+## Template Includes
+
+Includes let you extract a reusable piece of HTML — like a navigation bar, a footer, or a card component — into its own file and pull it into any template with a single tag.
+
+### How includes differ from inheritance
+
+| | Template inheritance | Template includes |
+|---|---|---|
+| Tag used | `{% extends %}` + `{% block %}` | `{% include %}` |
+| Purpose | Share a full page skeleton | Reuse a small HTML snippet |
+| Relationship | Parent → child | Host template → snippet |
+| Closing tag needed | `{% endblock %}` | No |
+| Access to host variables | N/A | Yes — automatically |
+
+<Callout type="info">
+    Use **inheritance** when templates share an overall layout (header, body, footer structure). Use **includes** when you want to reuse a smaller, self-contained chunk of markup in multiple places.
+</Callout>
+
+---
+
+## Setting Up an Include
+
+### File structure
+
+A good convention is to place partials in an `includes/` subfolder inside your app's templates directory. The name is up to you — `partials/`, `shared/`, or `components/` are all common choices.
+
+<FileTree>
+    <FileTree.Folder name="challenges" defaultOpen>
+        <FileTree.Folder name="templates" defaultOpen>
+            <FileTree.Folder name="challenges" defaultOpen>
+                <FileTree.File name="index.html" />
+                <FileTree.File name="challenge.html" />
+                <FileTree.Folder name="includes" defaultOpen>
+                    <FileTree.File name="header.html" />
+                </FileTree.Folder>
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+### Create the snippet
+
+Write the partial as a standalone HTML fragment — no `<!DOCTYPE>`, no `<html>` wrapper, just the markup for that component:
+
+```django filename="challenges/templates/challenges/includes/header.html"
+<header>
+  <nav>
+    <a href="{% url 'index' %}">All Challenges</a>
+    {# 'month' is available here when included from challenge.html #}
+    {# It produces nothing when included from index.html (not in context) #}
+    {% if month %}<span>/ {{ month | title }}</span>{% endif %}
+  </nav>
+</header>
+```
+
+---
+
+You must include named URL in the urls.py
+
+```django filename="myproject/myproject/settings.py"
+urlpatterns = [
+    path("", views.index, name="index"),
+    ........
+]
+```
+
+### Use the `include` tag
+
+Pull the snippet into any template using `{% include %}`. Use the path relative to your registered templates directory:
+
+```django filename="challenges/templates/challenges/challenge.html"
+{% extends 'base.html' %}
+
+{% block page_title %}{{ month | title }} Challenge{% endblock %}
+
+{% block content %}
+  {% include 'challenges/includes/header.html' %}
+
+  <h1>The {{ month | title }} Challenge</h1>
+
+  {% if text %}
+    <p>{{ text }}</p>
+  {% else %}
+    <p>There is no challenge for {{ month | title }} yet.</p>
+  {% endif %}
+{% endblock %}
+```
+
+```django filename="challenges/templates/challenges/index.html"
+{% extends 'base.html' %}
+
+{% block page_title %}All Challenges{% endblock %}
+
+{% block content %}
+  {% include 'challenges/includes/header.html' %}
+
+  <ul>
+    {% for month in months %}
+      <li>
+        <a href="{% url 'month-challenge' month %}">
+          {{ month | title }}
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}
+```
+
+<Callout type="default">
+    `{% include %}` needs no closing tag. Like `{% url %}`, it performs a single task — inserting the snippet — and has no block scope.
+</Callout>
+
+### Path options
+
+You can reference the included file using either an absolute template path or a relative path from the including file:
+
+```django
+{# Absolute path (recommended) — works regardless of where the including file sits #}
+{% include 'challenges/includes/header.html' %}
+
+{# Relative path — fragile if files are moved #}
+{% include './includes/header.html' %}
+```
+
+Prefer the **absolute path**. It works consistently from any template in any location and doesn't break when files are reorganised.
+
+---
+
+## Variable Access in Includes
+
+Included snippets automatically inherit all context variables from the template that includes them. No extra setup is required.
+
+```django filename="challenges/includes/header.html"
+<header>
+  <nav>
+    <a href="{% url 'index' %}">All Challenges</a>
+    {# 'month' is available here when included from challenge.html #}
+    {# It produces nothing when included from index.html (not in context) #}
+    {% if month %}<span>/ {{ month | title }}</span>{% endif %}
+  </nav>
+</header>
+```
+
+<Callout type="warning">
+    Be mindful of which variables are available in which templates. If a snippet relies on a variable like `month`, it will work when included from `challenge.html` (where `month` is in context) but silently produce nothing when included from `index.html` (where it is not).
+</Callout>
+
+---
+
+## Passing Extra Context with `with`
+
+You can pass additional variables to an included snippet using the `with` keyword. These variables are available only inside the snippet, not in the host template.
+
+```django filename="challenge.html"
+{% include 'challenges/includes/header.html' with active_page="challenge" %}
+```
+
+```django filename="index.html"
+{% include 'challenges/includes/header.html' with active_page="index" %}
+```
+
+Inside the snippet, `active_page` is now available:
+
+```django filename="includes/header.html"
+<header>
+  <nav>
+    <a
+      href="{% url 'index' %}"
+      {% if active_page == "index" %}
+      class="active"
+      {% endif %}
+    >
+      All Challenges
+    </a>
+    {# 'month' is available here when included from challenge.html #}
+    {# It produces nothing when included from index.html (not in context) #}
+    {% if month %}<span>/ {{ month | title }}</span>{% endif %}
+  </nav>
+</header>
+```
+
+This is useful for things like highlighting the currently active navigation link — a pattern you'll reach for often in real projects.

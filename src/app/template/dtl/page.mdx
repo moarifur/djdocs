@@ -1,0 +1,76 @@
+---
+title: Django Template Language (DTL)
+description: How to structure, render, and inject dynamic content into Django HTML templates.
+tags: [django, templates, DTL, render, context, best-practices]
+---
+
+# Django Template Language (DTL)
+
+How to structure, render, and inject dynamic content into Django HTML templates.
+
+---
+
+## Template folder structure
+
+When organizing your templates, always place them inside a subfolder named after the app — even within that app's own `templates/` directory.
+
+```
+challenges/
+  templates/
+    challenges/          ← repeat the app name here
+      challenge.html
+```
+
+> **Why this matters:** Django merges template directories from all installed apps into a single lookup pool. Without app-namespaced subfolders, two apps with a file both named `challenge.html` will collide and Django cannot distinguish them.
+
+So the render path you use in your view will be:
+
+```python
+render(request, "challenges/challenge.html")
+```
+
+---
+
+## Using `render()` instead of `render_to_string()`
+
+The `render_to_string()` + manual `HttpResponse` pattern works, but Django ships a shortcut that does both in one call.
+
+:::note
+Make sure `render` is imported from `django.shortcuts` in your `views.py`.
+:::
+
+Replace the verbose two-step approach:
+
+```python
+from django.template.loader import render_to_string
+from django.http import HttpResponse
+
+def monthly_challenge(request):
+    html = render_to_string("challenges/challenge.html")
+    return HttpResponse(html)
+```
+
+With the concise single call:
+
+```python
+from django.shortcuts import render
+
+def monthly_challenge(request, month):
+    return render(request, "challenges/challenge.html")
+```
+
+> **Note:** `render()` requires the `request` object as its first argument. Django uses it internally to extract session data and other request-scoped information.
+
+---
+
+
+## Summary
+
+| Feature | Syntax | Use case |
+|---|---|---|
+| Variable output | `{{ variable }}` | Display a context variable |
+| Filter | `{{ variable \| filter }}` | Format or transform a value |
+| For loop | `{% for x in list %}...{% endfor %}` | Iterate over a list |
+| URL generation | `{% url 'name' arg %}` | Generate a path from a named URL |
+
+For the complete reference of all built-in tags and filters, see the [official Django template documentation](https://docs.djangoproject.com/en/stable/ref/templates/builtins/).
