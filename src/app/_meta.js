@@ -12,7 +12,7 @@ export default {
         type: 'page'
     },
     projects: {
-        title: 'Projects',
+        title: '💰 Projects',
         type: 'page'
     },
 

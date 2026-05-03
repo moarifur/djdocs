@@ -25,10 +25,10 @@ const Nav = () => {
         <Navbar
             logo={
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4em' }}>
-                    <Image src="/logo.svg" alt="djDocs" width={24} height={24} />
-                    <span style={{ fontWeight: 800 }}>djDocs</span>
-                    {/* Book SVG added here */}
+                    {/*Book SVG added here */}
                     <BookIcon />
+                    {/*<Image src="/logo.svg" alt="djDocs" width={24} height={24} />*/}
+                    <span style={{ fontWeight: 800 }}>djDocs</span>
                 </div>
             }
             projectLink="https://github.com/moarifur/djdocs"
