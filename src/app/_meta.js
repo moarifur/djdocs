@@ -1,22 +1,18 @@
 export default {
-    workflows: {
-        title: '⚙️ Workflow',
-        type: 'page'
-    },
-    index: {
-        title: 'Intro',
-        type: 'page'
-    },
-    fundamentals: {
-        title: 'Installation',
-        type: 'page'
-    },
-    routing: {
-        title: 'Routes to Responses',
+    foundations: {
+        title: 'Django Foundations',
         type: 'page'
     },
     template: {
         title: 'Templates in Action',
+        type: 'page'
+    },
+    workflows: {
+        title: '⚙️ Workflows',
+        type: 'page'
+    },
+    projects: {
+        title: 'Projects',
         type: 'page'
     },
 

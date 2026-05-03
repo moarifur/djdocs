@@ -1,18 +1,15 @@
 export default {
-    index: {
-        title: 'Overview',
-    },
-    venv: {
-        title: 'Virtual Environment',
+    intro: {
+        title: 'Python Web Framework',
     },
     installation: {
         title: 'Django Setup (Step-by-Step)',
     },
-    blueprint: {
-        title: 'Django Decoded',
-    },
     apps: {
         title: 'Django Projects & Apps',
+    },
+    routing: {
+        title: 'Routing: URLs & Views',
     },
 
 };

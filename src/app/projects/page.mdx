@@ -1,0 +1,461 @@
+# Building a Blog with Django
+
+A step-by-step guide to building a fully functional personal blog using Django — covering project setup, URL routing, views, templates, static files, and dynamic data.
+
+---
+
+## Overview
+
+In this guide, you'll build a personal blog site from scratch using a new Django project. The blog will include:
+
+- A **starting/home page** listing the latest posts
+- An **all posts page** listing every post
+- A **post detail page** for individual posts
+- Template inheritance with a shared base layout
+- Static files (CSS + images)
+- Dynamic data passed from views to templates
+- A custom 404 error page
+
+---
+## Environment Setup
+
+### Check Python
+```bash
+python -V
+# Expected: Python 3.x.x
+```
+
+### Upgrade pip
+```bash
+python -m pip install --upgrade pip
+```
+
+### Create & Activate Virtual Environment
+```bash
+python -m venv venv
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # macOS/Linux
+# Confirm: (venv) prefix appears in terminal
+```
+
+### Install Django
+```bash
+pip install django
+pip freeze                   # Verify: Django==6.x.x
+```
+
+---
+## Project Setup
+
+### Create the Django Project
+
+```bash
+django-admin startproject my_site
+```
+
+This creates a `my_site/` folder as the project root. Think of `my_site` as the wrapper that holds all your apps.
+
+### Create the Blog App
+
+```bash
+cd my_site
+python manage.py startapp projects
+```
+
+This generates a `blog/` folder containing your app files.
+
+### Register the App
+
+Open `my_site/settings.py` and add `"blog"` to `INSTALLED_APPS`:
+
+```python
+INSTALLED_APPS = [
+    # ...default apps...
+    "blog",
+]
+```
+
+> **Why?** Django needs to know about your app to auto-detect its templates and static files.
+
+---
+
+## URL Routing
+
+### App-level URLs
+
+Create a `urls.py` file inside the `blog/` folder:
+
+```python
+# blog/urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("", views.starting_page, name="starting-page"),
+    path("posts", views.posts, name="posts-page"),
+    path("posts/<slug:slug>", views.post_detail, name="post-detail-page"),
+]
+```
+
+**URL structure:**
+
+| URL | View | Description |
+|-----|------|-------------|
+| `/` | `starting_page` | Home page with latest posts |
+| `/posts` | `posts` | All posts listing |
+| `/posts/<slug>` | `post_detail` | Individual post detail |
+
+> **What is a slug?** A slug is a URL-friendly text identifier like `my-first-post`. It's human-readable, SEO-friendly, and unique per post. Django has a built-in `slug` path converter that validates the format.
+
+### Project-level URLs
+
+Wire the blog URLs into `my_site/urls.py`:
+
+```python
+# my_site/urls.py
+from django.urls import path, include
+
+urlpatterns = [
+    path("", include("blog.urls")),
+]
+```
+
+Using an empty string `""` means `/` maps directly to the blog's starting page — so visitors don't need a `/blog` prefix.
+
+---
+
+## Views
+
+Create stub view functions in `blog/views.py`:
+
+```python
+# blog/views.py
+from django.shortcuts import render
+from datetime import date
+
+all_posts = [
+    {
+        "slug": "hike-in-the-mountains",
+        "image": "mountains.jpg",
+        "author": "Maximilian",
+        "date": date(2021, 7, 21),
+        "title": "Mountain Hiking",
+        "excerpt": "There's nothing like the views you get when hiking in the mountains!",
+        "content": """
+            There's nothing like the views you get when hiking in the mountains!
+            And I wasn't even prepared for what happened whilst I was enjoying the view!
+        """,
+    },
+    # Add more posts here...
+]
+
+
+def get_date(post):
+    return post["date"]
+
+
+def starting_page(request):
+    sorted_posts = sorted(all_posts, key=get_date)
+    latest_posts = sorted_posts[-3:]
+    return render(request, "blog/index.html", {"posts": latest_posts})
+
+
+def posts(request):
+    return render(request, "blog/all-posts.html", {"all_posts": all_posts})
+
+
+def post_detail(request, slug):
+    identified_post = next(p for p in all_posts if p["slug"] == slug)
+    return render(request, "blog/post-detail.html", {"post": identified_post})
+```
+
+> **Tip:** `sorted()` returns a new sorted list (does not mutate the original), while `.sort()` sorts in-place. Use `sorted()` here to preserve the original `all_posts` list.
+
+---
+
+## Templates
+
+### Folder Structure
+
+```
+my_site/
+├── templates/          ← Global templates folder
+│   └── base.html
+└── blog/
+    └── templates/
+        └── blog/       ← App-specific templates (best practice: repeat app name)
+            ├── index.html
+            ├── all-posts.html
+            ├── post-detail.html
+            └── includes/
+                └── post.html
+```
+
+### Register Global Templates Folder
+
+In `my_site/settings.py`, add the global `templates/` folder to `DIRS`:
+
+```python
+TEMPLATES = [
+    {
+        "DIRS": [BASE_DIR / "templates"],
+        # ...
+    }
+]
+```
+
+### Base Template
+
+```html
+<!-- templates/base.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>{% block title %}My Blog{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'app.css' %}" />
+    {% block css_files %}{% endblock %}
+</head>
+<body>
+    <header id="main-navigation">
+        <h1><a href="{% url 'starting-page' %}">My Blog</a></h1>
+        <nav>
+            <a href="{% url 'posts-page' %}">All Posts</a>
+        </nav>
+    </header>
+
+    {% block content %}{% endblock %}
+</body>
+</html>
+```
+
+> The `{% url 'name' %}` tag resolves named URLs so you never hardcode paths. If the URL pattern changes, only `urls.py` needs updating.
+
+### Starting Page (index.html)
+
+```html
+<!-- projects/templates/projects/index.html -->
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Blog{% endblock %}
+
+{% block css_files %}
+<link rel="stylesheet" href="{% static 'blog/post.css' %}" />
+<link rel="stylesheet" href="{% static 'blog/index.css' %}" />
+{% endblock %}
+
+{% block content %}
+<section id="welcome">
+    <header>
+        <img src="{% static 'blog/images/author.png' %}" alt="The author of this blog" />
+        <h2>Welcome to My Blog</h2>
+    </header>
+    <p>Hi, I love to blog about tech and the world!</p>
+</section>
+
+<section id="latest-posts">
+    <h2>My Latest Thoughts</h2>
+    <ol>
+        {% for post in posts %}
+            {% include "blog/includes/post.html" %}
+        {% endfor %}
+    </ol>
+</section>
+
+<section id="about">
+    <h2>What I Do</h2>
+    <p>I love programming and enjoy exploring new technologies!</p>
+</section>
+{% endblock %}
+```
+
+### All Posts Page
+
+```html
+<!-- projects/templates/projects/all-posts.html -->
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}All My Posts{% endblock %}
+
+{% block css_files %}
+<link rel="stylesheet" href="{% static 'blog/post.css' %}" />
+<link rel="stylesheet" href="{% static 'blog/all-posts.css' %}" />
+{% endblock %}
+
+{% block content %}
+<section id="all-posts">
+    <h2>My Collected Posts</h2>
+    <ul>
+        {% for post in all_posts %}
+            {% include "blog/includes/post.html" %}
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}
+```
+
+### Post Include Snippet
+
+This reusable snippet is shared between the home page and the all-posts page:
+
+```html
+<!-- projects/templates/projects/includes/post.html -->
+{% load static %}
+<li>
+    <article class="post">
+        <a href="{% url 'post-detail-page' post.slug %}">
+            <img
+                src="{% static 'blog/images/'|add:post.image %}"
+                alt="{{ post.title }}"
+            />
+            <div class="post__content">
+                <h3>{{ post.title }}</h3>
+                <p>{{ post.excerpt }}</p>
+            </div>
+        </a>
+    </article>
+</li>
+```
+
+> **Dictionary access in templates:** Use dot notation (`post.title`) instead of bracket notation (`post["title"]`). Django's template engine uses `.` for both object attributes and dictionary keys.
+
+> **Dynamic static URLs:** Use the `|add` filter to concatenate a variable onto a static path:
+> ```
+> {% static 'blog/images/'|add:post.image %}
+> ```
+
+### Post Detail Page
+
+```html
+<!-- projects/templates/projects/post-detail.html -->
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ post.title }}{% endblock %}
+
+{% block css_files %}
+<link rel="stylesheet" href="{% static 'blog/post-detail.css' %}" />
+{% endblock %}
+
+{% block content %}
+<section id="summary">
+    <h2>{{ post.title }}</h2>
+    <article>
+        <img
+            src="{% static 'blog/images/'|add:post.image %}"
+            alt="{{ post.title }}"
+        />
+        <address>By {{ post.author }}</address>
+        <div>
+            Last updated on <time>{{ post.date | date:"d N Y" }}</time>
+        </div>
+    </article>
+</section>
+
+<main>
+    {{ post.content | linebreaks }}
+</main>
+{% endblock %}
+```
+
+**Template filters used:**
+
+| Filter | Purpose | Example |
+|--------|---------|---------|
+| `date` | Formats a date object | `post.date\|date:"d N Y"` |
+| `linebreaks` | Converts newlines to `<br>` / `<p>` tags | `post.content\|linebreaks` |
+| `add` | Concatenates a string | `'prefix/'|add:variable` |
+
+---
+
+## Static Files
+
+### Folder Structure
+
+```
+my_site/
+├── static/             ← Global static files
+│   └── app.css
+└── blog/
+    └── static/
+        └── blog/       ← App-specific static files
+            ├── index.css
+            ├── all-posts.css
+            ├── post.css
+            ├── post-detail.css
+            └── images/
+                ├── author.png
+                └── mountains.jpg
+```
+
+### Register Global Static Folder
+
+In `my_site/settings.py`:
+
+```python
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+```
+
+> Without this, Django only looks for static files inside app-specific `static/` folders.
+
+### Using Static Files in Templates
+
+```html
+{% load static %}
+
+<!-- CSS -->
+<link rel="stylesheet" href="{% static 'app.css' %}" />
+
+<!-- Image -->
+<img src="{% static 'blog/images/mountains.jpg' %}" alt="Mountains" />
+```
+
+> Always add `{% load static %}` at the top of any template that uses the `{% static %}` tag — including included snippets.
+
+---
+
+## Custom 404 Page
+
+Create a `404.html` file in the **global** `templates/` folder. Django picks this up automatically when a 404 error is raised:
+
+```html
+<!-- templates/404.html -->
+{% extends "base.html" %}
+
+{% block title %}We didn't find that page{% endblock %}
+
+{% block content %}
+<h2>We're sorry.</h2>
+<p>But we couldn't find that page.</p>
+{% endblock %}
+```
+
+> This page only shows in production mode (with `DEBUG = False`). In development, Django shows its built-in debug 404 page.
+
+---
+
+## Summary
+
+Here's what was covered end-to-end:
+
+1. **Project & App** — Created `my_site` project and `blog` app, registered the app in settings
+2. **URLs** — Defined three routes: starting page, all posts, and post detail with a dynamic `slug` segment
+3. **Views** — Wrote Python view functions, sorted posts by date, and passed context dictionaries to templates
+4. **Templates** — Used `{% extends %}` for inheritance, `{% block %}` for content slots, `{% include %}` for reusable snippets, and `{% url %}` for named link resolution
+5. **Static Files** — Organized CSS and images in global and app-level `static/` folders, registered the global folder in settings
+6. **Data** — Stored dummy post data as Python dictionaries in `views.py` (to be replaced with a database later)
+7. **404 Page** — Added a custom `404.html` in the global templates directory
+
+---
+
+## What's Next
+
+- Replace dummy data with a **database** using Django models and migrations
+- Add a **forms** layer to create/edit blog posts
+- Implement **user authentication** for admin access
+- Add **pagination** to the all-posts page
