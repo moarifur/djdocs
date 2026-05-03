@@ -1,6 +1,6 @@
-# Workflow Cheat Sheet
+# Django Feature Workflow
 
-Use this as your **step-by-step guide** every time you build a new feature in Django.
+Use this as your step-by-step guide every time you build a new feature in Django.
 
 ## The 6-Step Feature Workflow
 
@@ -13,9 +13,11 @@ Use this as your **step-by-step guide** every time you build a new feature in Dj
 | **5** | Connect to Project | Add `path('<prefix>/', include('<appname>.urls'))` in project `urls.py` |
 | **6** | Test in Browser | Run `python manage.py runserver` and visit the URL |
 
+> **Tip:** Follow these steps in order every time — skipping any step is the most common source of 404 errors in Django.
+
 ---
 
-## Quick Reference — File Structure
+## Project File Structure
 
 ```
 myproject/
@@ -28,9 +30,27 @@ myproject/
 
 ---
 
-## Quick Reference — Code Snippets
+## Code Snippets
 
-### Step 3 — View
+### Step 1 — Create the App
+
+```bash
+python manage.py startapp <appname>
+```
+
+### Step 2 — Register the App
+
+Open `myproject/settings.py` and add your app to `INSTALLED_APPS`:
+
+```python
+# myproject/settings.py
+INSTALLED_APPS = [
+    # ...existing apps...
+    '<appname>',
+]
+```
+
+### Step 3 — Write a View
 
 ```python
 # <appname>/views.py
@@ -40,7 +60,9 @@ def index(request):
     return HttpResponse('Hello from <appname>!')
 ```
 
-### Step 4 — App URLs
+### Step 4 — Create App URLs
+
+Create a new file `<appname>/urls.py`:
 
 ```python
 # <appname>/urls.py
@@ -52,7 +74,7 @@ urlpatterns = [
 ]
 ```
 
-### Step 5 — Project URLs
+### Step 5 — Connect to Project URLs
 
 ```python
 # myproject/urls.py
@@ -63,4 +85,10 @@ urlpatterns = [
 ]
 ```
 
-> **Tip:** Follow these steps in order every time — skipping any step is the most common source of 404 errors in Django.
+### Step 6 — Run the Dev Server
+
+```bash
+python manage.py runserver
+```
+
+Then open your browser and visit `http://127.0.0.1:8000/<prefix>/`.

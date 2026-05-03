@@ -33,7 +33,9 @@ monthly_challenges = {
 
 ---
 
-## URL Configuration (`urls.py`)
+## URL Configuration
+
+**File:** `urls.py`
 
 ```python
 from django.urls import path
@@ -49,7 +51,7 @@ urlpatterns = [
 ### URL Pattern Summary
 
 | Pattern | View | Name | Example |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `/` | `index` | — | `/challenges/` |
 | `/<int>/` | `monthly_challenges_by_number` | — | `/challenges/3/` |
 | `/<str>/` | `monthly_challenge` | `month-challenge` | `/challenges/march/` |
@@ -58,9 +60,9 @@ urlpatterns = [
 
 ---
 
-## Views (`views.py`)
+## Views
 
-### Full `views.py`
+**File:** `views.py`
 
 ```python
 from django.http import HttpResponse, HttpResponseNotFound, HttpResponseRedirect
@@ -140,7 +142,7 @@ def monthly_challenge(request, month):
 ```
 
 | Scenario | Response |
-|---|---|
+| --- | --- |
 | Valid month (e.g. `"march"`) | `HttpResponse` with challenge text |
 | Invalid month (e.g. `"xyz"`) | `HttpResponseNotFound` with error message |
 
@@ -163,11 +165,11 @@ def monthly_challenges_by_number(request, month):
 ```
 
 | Scenario | Response |
-|---|---|
+| --- | --- |
 | Valid number (e.g. `3`) | Redirects to `/challenges/march/` |
 | Out-of-range (e.g. `0` or `13`) | `HttpResponseNotFound` |
 
-**Why `month - 1`?** Dictionary keys are zero-indexed in the list, but months are 1-indexed by convention.
+> **Why `month - 1`?** Dictionary keys are zero-indexed in the list, but months are 1-indexed by convention.
 
 ---
 
@@ -215,13 +217,13 @@ url = reverse("month-challenge", args=["march"])
 
 ## Routing Flow
 
-```
-GET /challenges/         → index()                      → HTML list of months
-GET /challenges/march/   → monthly_challenge("march")   → Challenge text
-GET /challenges/3/       → monthly_challenges_by_number(3) → 302 → /challenges/march/
-GET /challenges/xyz/     → monthly_challenge("xyz")     → 404
-GET /challenges/99/      → monthly_challenges_by_number(99) → 404
-```
+| Request | View | Result |
+| --- | --- | --- |
+| `GET /challenges/` | `index()` | HTML list of months |
+| `GET /challenges/march/` | `monthly_challenge("march")` | Challenge text |
+| `GET /challenges/3/` | `monthly_challenges_by_number(3)` | 302 → `/challenges/march/` |
+| `GET /challenges/xyz/` | `monthly_challenge("xyz")` | 404 |
+| `GET /challenges/99/` | `monthly_challenges_by_number(99)` | 404 |
 
 ---
 

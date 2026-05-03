@@ -18,7 +18,7 @@ export default {
         title: 'Base Template',
     },
     includes: {
-        title: 'Template Includes & includes Pages',
+        title: 'Includes',
     },
 
 };

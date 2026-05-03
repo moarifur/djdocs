@@ -4,24 +4,31 @@ description: How to structure, render, and inject dynamic content into Django HT
 tags: [django, templates, DTL, render, context, best-practices]
 ---
 
+import { Callout, FileTree, Steps } from 'nextra/components'
+
 # Django Template Language (DTL)
 
 How to structure, render, and inject dynamic content into Django HTML templates.
 
 ---
 
-## Template folder structure
+## Template Folder Structure
 
 When organizing your templates, always place them inside a subfolder named after the app — even within that app's own `templates/` directory.
 
-```
-challenges/
-  templates/
-    challenges/          ← repeat the app name here
-      challenge.html
-```
+<FileTree>
+    <FileTree.Folder name="challenges" defaultOpen>
+        <FileTree.Folder name="templates" defaultOpen>
+            <FileTree.Folder name="challenges" defaultOpen label="← repeat the app name here">
+                <FileTree.File name="challenge.html" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
 
-> **Why this matters:** Django merges template directories from all installed apps into a single lookup pool. Without app-namespaced subfolders, two apps with a file both named `challenge.html` will collide and Django cannot distinguish them.
+<Callout type="warning" emoji="⚠️">
+    Django merges template directories from all installed apps into a single lookup pool. Without app-namespaced subfolders, two apps with a file both named `challenge.html` will collide and Django cannot distinguish them.
+</Callout>
 
 So the render path you use in your view will be:
 
@@ -31,17 +38,17 @@ render(request, "challenges/challenge.html")
 
 ---
 
-## Using `render()` instead of `render_to_string()`
+## Using `render()` Instead of `render_to_string()`
 
 The `render_to_string()` + manual `HttpResponse` pattern works, but Django ships a shortcut that does both in one call.
 
-:::note
-Make sure `render` is imported from `django.shortcuts` in your `views.py`.
-:::
+<Callout type="info">
+    Make sure `render` is imported from `django.shortcuts` in your `views.py`.
+</Callout>
 
-Replace the verbose two-step approach:
+**Before** — the verbose two-step approach:
 
-```python
+```python filename="views.py"
 from django.template.loader import render_to_string
 from django.http import HttpResponse
 
@@ -50,27 +57,168 @@ def monthly_challenge(request):
     return HttpResponse(html)
 ```
 
-With the concise single call:
+**After** — the concise single call:
 
-```python
+```python filename="views.py"
 from django.shortcuts import render
 
 def monthly_challenge(request, month):
     return render(request, "challenges/challenge.html")
 ```
 
-> **Note:** `render()` requires the `request` object as its first argument. Django uses it internally to extract session data and other request-scoped information.
+<Callout type="info">
+    `render()` requires the `request` object as its first argument. Django uses it internally to extract session data and other request-scoped information.
+</Callout>
 
 ---
 
+## Passing Context to Templates
+
+To make templates dynamic, pass a **context dictionary** as the third argument to `render()`. Each key becomes a variable accessible inside the template.
+
+```python filename="views.py"
+def monthly_challenge(request, month):
+    challenge_text = "Run 5km every day."
+    context = {
+        "challenge": challenge_text,
+        "month": month,
+    }
+    return render(request, "challenges/challenge.html", context)
+```
+
+Inside your template, reference context variables with double curly braces:
+
+```html filename="challenges/challenge.html"
+<h1>{{ month|title }} Challenge</h1>
+<p>{{ challenge }}</p>
+```
+
+---
+
+## DTL Syntax Reference
+
+### Variables
+
+Output the value of a context variable:
+
+```django
+{{ variable }}
+```
+
+### Filters
+
+Transform or format a variable's value using the pipe `|` operator:
+
+```django
+{{ month | title }}       {# Capitalizes the string #}
+{{ price | floatformat:2 }} {# Rounds to 2 decimal places #}
+{{ text | truncatewords:10 }} {# Truncates to 10 words #}
+```
+
+### Tags
+
+Tags control logic and are wrapped in `{% %}`:
+
+**For loop:**
+
+```django
+{% for day in days %}
+  <li>{{ day }}</li>
+{% endfor %}
+```
+
+**If / else:**
+
+```django
+{% if challenge %}
+  <p>{{ challenge }}</p>
+{% else %}
+  <p>No challenge this month.</p>
+{% endif %}
+```
+
+**URL generation:**
+
+```django
+<a href="{% url 'monthly-challenge' month='january' %}">January</a>
+```
+
+### Template Inheritance
+
+Define a base layout in one file and extend it in others.
+
+```django filename="base.html"
+<!DOCTYPE html>
+<html>
+  <head><title>{% block title %}My Site{% endblock %}</title></head>
+  <body>
+    {% block content %}{% endblock %}
+  </body>
+</html>
+```
+
+```django filename="challenges/challenge.html"
+{% extends "base.html" %}
+
+{% block title %}{{ month|title }} Challenge{% endblock %}
+
+{% block content %}
+  <h1>{{ month|title }}</h1>
+  <p>{{ challenge }}</p>
+{% endblock %}
+```
+
+---
+
+## Steps to Wire Up a Template
+
+<Steps>
+
+    ### Create the template directory
+
+    Inside your app folder, create `templates/<app_name>/` and add your `.html` file.
+
+    ### Register the app
+
+    Make sure your app is listed in `INSTALLED_APPS` inside `settings.py` so Django can discover its templates.
+
+    ```python filename="settings.py"
+    INSTALLED_APPS = [
+    ...
+    "challenges",
+    ]
+    ```
+
+    ### Build the context dictionary
+
+    In your view, assemble all dynamic data into a plain Python `dict`.
+
+    ### Call `render()`
+
+    Pass `request`, the template path, and the context dict.
+
+    ```python filename="views.py"
+    from django.shortcuts import render
+
+    def monthly_challenge(request, month):
+    context = {"month": month, "challenge": "Run 5km daily."}
+    return render(request, "challenges/challenge.html", context)
+    ```
+
+</Steps>
+
+---
 
 ## Summary
 
-| Feature | Syntax | Use case |
-|---|---|---|
-| Variable output | `{{ variable }}` | Display a context variable |
-| Filter | `{{ variable \| filter }}` | Format or transform a value |
-| For loop | `{% for x in list %}...{% endfor %}` | Iterate over a list |
-| URL generation | `{% url 'name' arg %}` | Generate a path from a named URL |
+| Feature           | Syntax                          | Use Case                          |
+| ----------------- | ------------------------------- | --------------------------------- |
+| Variable output   | `{{ variable }}`                | Display a context variable        |
+| Filter            | `{{ variable \| filter }}`      | Format or transform a value       |
+| For loop          | `{% for x in list %}...{% endfor %}` | Iterate over a list          |
+| If / else         | `{% if cond %}...{% endif %}`   | Conditional rendering             |
+| URL generation    | `{% url 'name' arg %}`          | Generate a path from a named URL  |
+| Template inheritance | `{% extends "base.html" %}`  | Reuse a shared layout             |
+| Block definition  | `{% block name %}...{% endblock %}` | Define an overridable region  |
 
 For the complete reference of all built-in tags and filters, see the [official Django template documentation](https://docs.djangoproject.com/en/stable/ref/templates/builtins/).

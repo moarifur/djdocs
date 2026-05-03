@@ -1,15 +1,116 @@
-# URLs / Routes?
+---
+title: URLs / Routes
+description: Learn how Django routes incoming requests to the right views using URL patterns.
+---
 
-A **URL (route)** tells Django what to do when a user visits a specific link.
+import { Callout } from 'nextra/components'
+
+# URLs / Routes
+
+A **URL (route)** tells Django what to do when a user visits a specific link. Every page or endpoint in your Django app is mapped to a URL pattern — when a request comes in, Django checks the URL, finds a match, and calls the corresponding view function.
+
+## How It Works
+
+When a user visits a URL, Django:
+
+1. Receives the incoming HTTP request
+2. Scans `urls.py` from top to bottom for a matching pattern
+3. Calls the associated view function
+4. Returns the view's response to the user
 
 ## Common URL Examples
 
 | URL | What It Shows |
 |-----|---------------|
-| `/` | Landing page |
+| `/` | Landing / home page |
 | `/posts` | List of all posts |
-| `/posts/1` | A specific post |
+| `/posts/1` | A specific post (ID = 1) |
 | `/login` | Login page |
 | `/profile` | User profile page |
 
-> **Think of URLs as addresses** — each one points Django to a specific destination in your app.
+<Callout type="info">
+    **Think of URLs as addresses** — each one points Django to a specific destination in your app.
+</Callout>
+
+## Defining URLs
+
+URL patterns are defined in your app's `urls.py` file using the `path()` function.
+
+```python
+# myapp/urls.py
+
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.home, name='home'),
+    path('posts/', views.post_list, name='post-list'),
+    path('posts/<int:id>/', views.post_detail, name='post-detail'),
+    path('login/', views.login_view, name='login'),
+    path('profile/', views.profile, name='profile'),
+]
+```
+
+### Dynamic URL Segments
+
+Use angle brackets to capture dynamic values from the URL:
+
+```python
+path('posts/<int:id>/', views.post_detail, name='post-detail')
+#              ^^^^^^^^
+#              Captures a number and passes it to the view as `id`
+```
+
+Common converters:
+
+| Converter | Example | Matches |
+|-----------|---------|---------|
+| `<int:id>` | `/posts/42/` | Positive integers |
+| `<str:slug>` | `/posts/my-title/` | Any non-empty string |
+| `<slug:slug>` | `/posts/my-title/` | Slug-safe strings (letters, hyphens) |
+| `<uuid:id>` | `/items/abc-123.../` | UUID format |
+
+## Including App URLs in the Project
+
+Django projects have a root `urls.py`. You include app-level URLs from there using `include()`:
+
+```python
+# myproject/urls.py
+
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('myapp.urls')),
+]
+```
+
+<Callout type="warning">
+    Order matters in `urlpatterns`. Django matches patterns **top to bottom** and stops at the first match. Put more specific patterns before general ones.
+</Callout>
+
+## Naming URLs
+
+Giving URLs a `name` lets you reference them elsewhere without hardcoding the path:
+
+```python
+# In urls.py
+path('posts/<int:id>/', views.post_detail, name='post-detail')
+
+# In a template
+<a href="{% url 'post-detail' id=1 %}">Read post</a>
+
+# In a view (redirect)
+from django.urls import reverse
+redirect(reverse('post-detail', args=[1]))
+```
+
+This makes your app easier to maintain — if you change a URL path, you only update it in `urls.py`.
+
+## Summary
+
+- URLs are defined in `urls.py` using `path()`
+- Dynamic segments (like post IDs) are captured with type converters
+- App URLs are plugged into the project via `include()`
+- Named URLs let you reference routes without hardcoding strings

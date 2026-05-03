@@ -4,39 +4,23 @@
 
 ---
 
-## Table of Contents
-
-- [Static vs Dynamic Path Segments](#static-vs-dynamic-path-segments)
-- [Static Path Segments](#static-path-segments)
-- [Dynamic Path Segments](#dynamic-path-segments)
-- [Path Converters](#path-converters)
-- [Handling Numeric Month URLs](#handling-numeric-month-urls)
-- [Static vs Dynamic Redirect URLs](#static-vs-dynamic-redirect-urls)
-- [The Problem with Hardcoded Redirects](#the-problem-with-hardcoded-redirects)
-- [The Solution — Using reverse()](#the-solution--using-reverse)
-- [Project URL Configuration](#project-url-configuration)
-
----
-
 ## Static vs Dynamic Path Segments
 
-| Feature     | Static Path                  | Dynamic Path                    |
-|-------------|------------------------------|---------------------------------|
-| Definition  | Fixed URL                    | Variable URL                    |
-| Changes?    | ❌ No                        | ✅ Yes                          |
-| Example     | `/about/`                    | `/posts/1/`                     |
-| Django Code | `path('about/', view)`       | `path('posts/<int:id>/', view)` |
-| Use Case    | Fixed pages                  | Data-driven pages               |
+| Feature | Static Path | Dynamic Path |
+|---|---|---|
+| Definition | Fixed URL | Variable URL |
+| Changes? | ❌ No | ✅ Yes |
+| Example | `/about/` | `/posts/1/` |
+| Django Code | `path('about/', view)` | `path('posts/<int:id>/', view)` |
+| Use Case | Fixed pages | Data-driven pages |
 
-### Use Static Paths when:
-- The page is fixed and doesn't depend on data
-- Examples: `/about/`, `/contact/`, `/login/`, `/pricing/`
-- Same content for everyone
+import { Callout } from 'nextra/components'
 
-### Use Dynamic Paths when:
-- The page depends on specific data (ID, name, slug, etc.)
-- Examples: `/posts/1`, `/user/arifur`, `/product/iphone-15`
-- Content changes based on input
+<Callout type="info" emoji="📌">
+    **Use Static Paths** for fixed pages that don't depend on data — `/about/`, `/contact/`, `/login/`, `/pricing/`.
+
+    **Use Dynamic Paths** when the page depends on specific data (ID, name, slug, etc.) — `/posts/1`, `/user/arifur`, `/product/iphone-15`.
+</Callout>
 
 ---
 
@@ -67,8 +51,8 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('', views.index),          # matches /challenges/
-    path('january', views.january), # matches /challenges/january/
+    path('', views.index),           # matches /challenges/
+    path('january', views.january),  # matches /challenges/january/
     path('february', views.february),
     path('march', views.march),
 ]
@@ -80,9 +64,7 @@ urlpatterns = [
 
 ### Basic Dynamic Routing
 
-#### `challenges/urls.py`
-
-```python
+```python filename="challenges/urls.py"
 urlpatterns = [
     path("<month>/", views.monthly_challenge),
 ]
@@ -90,9 +72,7 @@ urlpatterns = [
 
 ### With Robust Logic
 
-#### `challenges/views.py`
-
-```python
+```python filename="challenges/views.py"
 from django.http import HttpResponse, HttpResponseNotFound
 
 monthly_challenges = {
@@ -133,13 +113,13 @@ path('posts/<int:id>/', views.post_detail)
 
 ### Built-in Path Converters
 
-| Converter | Accepts              | Use Case        | Example URL                              |
-|-----------|----------------------|-----------------|------------------------------------------|
-| `int`     | Numbers only         | IDs             | `/posts/42`                              |
-| `str`     | Text (no `/`)        | Names           | `/user/arifur`                           |
-| `slug`    | Lowercase + dashes   | SEO-friendly URLs | `/posts/my-first-post`                 |
-| `uuid`    | UUID format          | Secure IDs      | `/order/550e8400-e29b-41d4-a716-...`    |
-| `path`    | Full path (with `/`) | File paths      | `/files/docs/report.pdf`                |
+| Converter | Accepts | Use Case | Example URL |
+|---|---|---|---|
+| `int` | Numbers only | IDs | `/posts/42` |
+| `str` | Text (no `/`) | Names | `/user/arifur` |
+| `slug` | Lowercase + dashes | SEO-friendly URLs | `/posts/my-first-post` |
+| `uuid` | UUID format | Secure IDs | `/order/550e8400-e29b-41d4-a716-...` |
+| `path` | Full path (with `/`) | File paths | `/files/docs/report.pdf` |
 
 ### Examples
 
@@ -182,11 +162,13 @@ urlpatterns = [
 ]
 ```
 
-> **Order matters.** Django tries patterns top to bottom. Put `<int:month>` first so numeric URLs don't accidentally match `<str:month>`.
+<Callout type="warning">
+    **Order matters.** Django tries patterns top to bottom. Put `<int:month>` first so numeric URLs don't accidentally match `<str:month>`.
+</Callout>
 
-### `challenges/views.py` — Number-to-Name Conversion
+### Number-to-Name Conversion
 
-```python
+```python filename="challenges/views.py"
 def monthly_challenges_by_number(request, month):
     month_list = list(monthly_challenges.keys())
     # → ["january", "february", ..., "december"]
@@ -202,17 +184,16 @@ def monthly_challenges_by_number(request, month):
     return HttpResponseRedirect("/challenges/" + month_name)  # ⚠️ fragile — see below
 ```
 
-### How indexing works
+### How Indexing Works
 
-```
-URL          month    index (month-1)    result
-/challenges/1    1        0              "january"
-/challenges/2    2        1              "february"
-/challenges/5    5        4              "may"
-/challenges/12   12       11             "december"
-```
+| URL | `month` | `index (month - 1)` | Result |
+|---|---|---|---|
+| `/challenges/1` | 1 | 0 | `"january"` |
+| `/challenges/2` | 2 | 1 | `"february"` |
+| `/challenges/5` | 5 | 4 | `"may"` |
+| `/challenges/12` | 12 | 11 | `"december"` |
 
-### Full redirect flow
+### Full Redirect Flow
 
 ```
 User visits /challenges/5/
@@ -231,6 +212,7 @@ monthly_challenge runs  →  returns "Create something and share it"
 ## Static vs Dynamic Redirect URLs
 
 ### Static Redirect URL
+
 A fixed, hardcoded URL that never changes.
 
 ```python
@@ -238,13 +220,14 @@ A fixed, hardcoded URL that never changes.
 return HttpResponseRedirect("/challenges/" + month_name)
 ```
 
-| Property         | Value                          |
-|------------------|-------------------------------|
-| Flexibility      | Low                           |
-| Maintenance risk | High (breaks on URL changes)  |
-| Security risk    | Low                           |
+| Property | Value |
+|---|---|
+| Flexibility | Low |
+| Maintenance risk | High (breaks on URL changes) |
+| Security risk | Low |
 
 ### Dynamic Redirect URL
+
 A URL generated at runtime using application logic.
 
 ```python
@@ -253,13 +236,15 @@ redirect_url = reverse("month-challenge", args=[month_name])
 return HttpResponseRedirect(redirect_url)
 ```
 
-| Property         | Value                             |
-|------------------|----------------------------------|
-| Flexibility      | High                             |
-| Maintenance risk | Low (survives URL prefix changes)|
-| Security risk    | Requires input validation        |
+| Property | Value |
+|---|---|
+| Flexibility | High |
+| Maintenance risk | Low (survives URL prefix changes) |
+| Security risk | Requires input validation |
 
-> ⚠️ **Security note:** When building dynamic redirects from user input (e.g. `?next=...`), always validate against an allowlist to prevent Open Redirect attacks.
+<Callout type="error" emoji="⚠️">
+    **Security note:** When building dynamic redirects from user input (e.g. `?next=...`), always validate against an allowlist to prevent Open Redirect attacks.
+</Callout>
 
 ---
 
@@ -290,8 +275,7 @@ return HttpResponseRedirect("/challenges/" + month_name)
 
 ### Step 1 — Name your URL pattern
 
-```python
-# challenges/urls.py
+```python filename="challenges/urls.py"
 urlpatterns = [
     path("<int:month>/", views.monthly_challenges_by_number),
     path("<str:month>/", views.monthly_challenge, name="month-challenge"),  # 👈 named
@@ -300,8 +284,7 @@ urlpatterns = [
 
 ### Step 2 — Use `reverse()` in your view
 
-```python
-# challenges/views.py
+```python filename="challenges/views.py"
 from django.http import HttpResponse, HttpResponseNotFound, HttpResponseRedirect
 from django.urls import reverse  # 👈 import
 
@@ -320,7 +303,7 @@ def monthly_challenges_by_number(request, month):
     return HttpResponseRedirect(redirect_url)
 ```
 
-### What `reverse()` produces
+### What `reverse()` Produces
 
 ```python
 reverse("month-challenge", args=["january"])
@@ -330,20 +313,18 @@ reverse("month-challenge", args=["may"])
 # → "/challenges/may/"
 ```
 
-### Why this is better
+### Comparison
 
-| Approach            | Code                                                 | Breaks on URL rename? |
-|---------------------|------------------------------------------------------|-----------------------|
-| ❌ Hardcoded string  | `HttpResponseRedirect("/challenges/" + month_name)` | Yes                   |
-| ✅ `reverse()`       | `HttpResponseRedirect(reverse("month-challenge", args=[month_name]))` | No |
+| Approach | Code | Breaks on URL rename? |
+|---|---|---|
+| ❌ Hardcoded string | `HttpResponseRedirect("/challenges/" + month_name)` | Yes |
+| ✅ `reverse()` | `HttpResponseRedirect(reverse("month-challenge", args=[month_name]))` | No |
 
 ---
 
 ## Project URL Configuration
 
-### `myproject/urls.py`
-
-```python
+```python filename="myproject/urls.py"
 from django.contrib import admin
 from django.urls import path, include
 
@@ -353,7 +334,9 @@ urlpatterns = [
 ]
 ```
 
-> If you rename `challenges/` to anything else here, **only the `reverse()` approach** in your views will continue to work correctly. Hardcoded redirect strings will need manual updates everywhere they appear.
+<Callout type="info">
+    If you rename `challenges/` to anything else here, **only the `reverse()` approach** in your views will continue to work correctly. Hardcoded redirect strings will need manual updates everywhere they appear.
+</Callout>
 
 ---
 

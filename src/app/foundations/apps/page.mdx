@@ -1,6 +1,15 @@
-# Understanding how Django projects are structured using reusable apps
+---
+title: Django Project Structure & Reusable Apps
+description: Learn how Django projects are organized using self-contained, reusable apps.
+---
+
+import { Callout, Steps, FileTree } from 'nextra/components'
+
+# Django Project Structure & Reusable Apps
 
 ## Project vs App
+
+Understanding the difference between a **project** and an **app** is the first step to thinking in Django.
 
 | Term        | Definition                                                        |
 |-------------|-------------------------------------------------------------------|
@@ -19,49 +28,63 @@
 
 ## Creating a New App
 
-Run this command from inside your project directory:
+<Steps>
 
-```bash
-python manage.py startapp challenges
-# Replace 'challenges' with your own app name
-```
+    ### Navigate to your project directory
+
+    Make sure you're inside your Django project folder before running any management commands.
+
+    ### Run `startapp`
+
+    ```bash
+    python manage.py startapp challenges
+    ```
+
+    Replace `challenges` with your own app name.
+
+    ### Register the app
+
+    Open `myproject/settings.py` and add your app to `INSTALLED_APPS` (see [Registering Your App](#registering-your-app-in-settingspy) below).
+
+</Steps>
 
 ---
 
 ## App Folder Structure
 
-When you run `startapp`, Django creates this folder for you:
+When you run `startapp`, Django scaffolds this folder automatically:
 
-```
-challenges/
-├── migrations/      # Track database changes
-├── __init__.py      # Makes this a Python package
-├── admin.py         # Register models for Admin panel
-├── apps.py          # App configuration & metadata
-├── models.py        # Define database structure
-├── tests.py         # Write test cases
-└── views.py         # Handle requests & return responses
-```
+<FileTree>
+    <FileTree.Folder name="challenges" defaultOpen>
+        <FileTree.Folder name="migrations" />
+        <FileTree.File name="__init__.py" />
+        <FileTree.File name="admin.py" />
+        <FileTree.File name="apps.py" />
+        <FileTree.File name="models.py" />
+        <FileTree.File name="tests.py" />
+        <FileTree.File name="views.py" />
+    </FileTree.Folder>
+</FileTree>
 
 ### What Each File Does
 
-| File          | Role                      | Think of it as...          |
-|---------------|---------------------------|----------------------------|
-| `models.py`   | Database structure        | Blueprint for your tables  |
-| `views.py`    | Request logic             | The brain of each page     |
-| `admin.py`    | Admin panel control       | Dashboard configurator     |
-| `migrations/` | DB change history         | Git for your database      |
-| `tests.py`    | Automated testing         | Your quality checker       |
-| `apps.py`     | App config & metadata     | App identity card          |
-| `__init__.py` | Python package marker     | Tells Python: I am a module|
+| File          | Role                      | Think of it as...           |
+|---------------|---------------------------|-----------------------------|
+| `models.py`   | Database structure        | Blueprint for your tables   |
+| `views.py`    | Request logic             | The brain of each page      |
+| `admin.py`    | Admin panel control       | Dashboard configurator      |
+| `migrations/` | DB change history         | Git for your database       |
+| `tests.py`    | Automated testing         | Your quality checker        |
+| `apps.py`     | App config & metadata     | App identity card           |
+| `__init__.py` | Python package marker     | Tells Python: I am a module |
 
 ---
 
 ## Registering Your App in `settings.py`
 
-After creating the app, open `myproject/settings.py` and add your app to `INSTALLED_APPS`:
+After creating the app, open `myproject/settings.py` and add your app name to the `INSTALLED_APPS` list:
 
-```python
+```python filename="myproject/settings.py"
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -73,4 +96,6 @@ INSTALLED_APPS = [
 ]
 ```
 
-> ⚠️ **Important:** If you skip this step, Django will **NOT** know your app exists. Always register first!
+<Callout type="warning">
+    If you skip this step, Django will **not** know your app exists. Models won't migrate, templates won't resolve, and signals won't fire. Always register your app first.
+</Callout>

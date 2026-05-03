@@ -1,4 +1,4 @@
-# Views in a nutshell
+# Views
 
 > **Definition:** A View is a function or class that handles a user request, runs business logic, and returns a response (HTML, JSON, redirect, or a file).
 
@@ -7,7 +7,13 @@ URL = where the user goes
 View = what happens there
 ```
 
-## A View Can Do Many Things
+## Overview
+
+A **view** is a function or class that receives a web request, executes business logic, and returns a response. Every URL in a Django project maps to exactly one view.
+
+## What a view can do
+
+A view is not limited to a single purpose. It can:
 
 - Show plain text
 - Render an HTML page
@@ -16,25 +22,31 @@ View = what happens there
 - Return JSON (for React or other front-ends)
 - Return a redirect or a file download
 
-## Simple Example — Text Response
+## Minimal example
 
-```python
-# challenges/views.py
+The simplest possible view returns a plain text response using `HttpResponse`.
 
+```python filename="challenges/views.py"
 from django.http import HttpResponse
 
 def index(request):
     return HttpResponse('Hello!')
 ```
 
-## What Can a View Return?
+## Return types
 
-| Return Type | Use Case | How |
-|-------------|----------|-----|
-| HTML | Web pages | `return render(request, 'template.html', context)` |
-| JSON | APIs / React front-end | `return JsonResponse({'key': 'value'})` |
-| Redirect | Send user elsewhere | `return redirect('/other-page/')` |
-| File | Download a file | `return FileResponse(open('file.pdf','rb'))` |
-| Plain Text | Quick testing | `return HttpResponse('Hello!')` |
+Django views can return several different response types depending on the use case.
 
-> **Note:** When using React + Django, Django usually returns **JSON data**, and React uses that data to build the UI on the front-end.
+| Return type | Use case         | Example                                               |
+| ----------- | ---------------- | ----------------------------------------------------- |
+| HTML        | Web pages        | `return render(request, 'template.html', context)`    |
+| JSON        | APIs / React     | `return JsonResponse({'key': 'value'})`               |
+| Redirect    | Send user elsewhere | `return redirect('/other-page/')`                  |
+| File        | Download a file  | `return FileResponse(open('file.pdf', 'rb'))`         |
+| Plain text  | Quick testing    | `return HttpResponse('Hello!')`                       |
+
+import { Callout } from 'nextra/components'
+
+<Callout type="info">
+    When using **React + Django**, Django typically returns **JSON data** only. React then consumes that data to build the UI on the front-end — Django does not render the HTML in this setup.
+</Callout>

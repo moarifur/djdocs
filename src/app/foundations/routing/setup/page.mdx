@@ -1,92 +1,106 @@
-# URLs & Views Setup (Step-by-Step)
+---
+title: URLs & Views Setup
+description: A step-by-step guide to wiring up Django URLs and Views for a new app.
+---
 
-To show content at `/challenges`, follow these **5 steps in order**.
+import { Callout, Steps, FileTree, Tabs } from 'nextra/components'
+
+# URLs & Views Setup
+
+A complete walkthrough for displaying content at a custom route like `/challenges` in Django.
 
 ---
 
-## Step 1 — Create a View Function
+<Steps>
 
-Open `challenges/views.py` and write a function that returns an HTTP response:
+    ### Create a View Function
 
-```python
-# challenges/views.py
+    Open `challenges/views.py` and define functions that return HTTP responses:
 
-from django.http import HttpResponse
+    ```python filename="challenges/views.py"
+    from django.http import HttpResponse
 
-def index(request):
+    def index(request):
     return HttpResponse('This is the challenges page')
 
-def january(request):
+    def january(request):
     return HttpResponse('January challenge!')
-```
+    ```
 
-> **Why?** A View function receives a `request` object and returns a response. It is the logic that runs when a user visits a URL.
+    <Callout type="info">
+        A view function receives a `request` object and must return a response. It contains the logic that runs when a user visits a URL.
+    </Callout>
 
----
+    ---
 
-## Step 2 — Create `urls.py` Inside Your App
+    ### Create `urls.py` Inside Your App
 
-Django does **not** create this file automatically. Create it yourself:
+    Django does **not** generate this file automatically — you must create it yourself inside the app folder.
 
-```
-challenges/
-├── views.py
-├── urls.py    <-- create this file
-└── ...
-```
+    <FileTree>
+        <FileTree.Folder name="challenges" defaultOpen>
+            <FileTree.File name="views.py" />
+            <FileTree.File name="urls.py" active />
+            <FileTree.File name="models.py" />
+            <FileTree.File name="apps.py" />
+        </FileTree.Folder>
+    </FileTree>
 
----
+    ---
 
-## Step 3 — Define `urlpatterns` Using `path()`
+    ### Define `urlpatterns` Using `path()`
 
-Inside `challenges/urls.py`, import `path()` and map URLs to view functions:
+    Inside the new `challenges/urls.py`, import `path()` and map URLs to your view functions:
 
-```python
-# challenges/urls.py
+    ```python filename="challenges/urls.py"
+    from django.urls import path
+    from . import views
 
-from django.urls import path
-from . import views
+    urlpatterns = [
+    path('', views.index),           # matches /challenges/
+    path('january/', views.january), # matches /challenges/january/
+    ]
+    ```
 
-urlpatterns = [
-    path('', views.index),            # matches /challenges/
-    path('january/', views.january),   # matches /challenges/january/
-]
-```
+    | Concept | Description |
+    |---|---|
+    | `urlpatterns` | A list holding all URL-to-view mappings for this app |
+    | `path()` | Connects a URL string pattern to a view function |
+    | `from . import views` | Imports the views module from the same app directory |
 
-| Concept | What It Does |
-|---------|--------------|
-| `urlpatterns` | A list that holds all URL-to-view mappings |
-| `path()` | Connects a URL string to a view function |
-| `from . import views` | Imports views from the same app folder |
+    ---
 
----
+    ### Connect App URLs to the Project's `urls.py`
 
-## Step 4 — Connect App URLs to the Project's `urls.py`
+    Open the **main project** `urls.py` and use `include()` to register your app's routes:
 
-Open the **main project** `urls.py` and include your app's URL config:
+    ```python filename="mypage/urls.py"
+    from django.urls import path, include
 
-```python
-# mypage/urls.py  (the main project file)
-
-from django.urls import path, include
-
-urlpatterns = [
+    urlpatterns = [
     path('challenges/', include('challenges.urls')),
-]
-```
+    ]
+    ```
 
-> **Warning:** Without this step, visiting `/challenges/` will return a **404 error** — Django simply won't know the route exists.
+    <Callout type="warning">
+        Without this step, visiting `/challenges/` will return a **404 error**. Django won't know the route exists until it is registered in the project-level `urls.py`.
+    </Callout>
 
----
+    ---
 
-## Step 5 — Test in Browser
+    ### Test in the Browser
 
-Run the development server and visit the URL:
+    Start the development server:
 
-```bash
-python manage.py runserver
-```
+    ```bash
+    python manage.py runserver
+    ```
 
-Then open your browser and go to:
-- `http://127.0.0.1:8000/challenges/` → runs `index` view
-- `http://127.0.0.1:8000/challenges/january/` → runs `january` view
+    Then visit the following URLs in your browser:
+
+    | URL | View Triggered |
+    |---|---|
+    | `http://127.0.0.1:8000/challenges/` | `index` |
+    | `http://127.0.0.1:8000/challenges/january/` | `january` |
+
+</Steps>
