@@ -101,7 +101,7 @@ By default, the admin panel won't show your custom models. You need to **registe
     <Tabs.Tab>
         The simplest approach — register the model directly:
 
-        ```python filename="books/admin.py"
+        ```python filename="book_outlet/admin.py"
         from django.contrib import admin
         from .models import Book
 
@@ -112,7 +112,7 @@ By default, the admin panel won't show your custom models. You need to **registe
     <Tabs.Tab>
         Use a `ModelAdmin` class to customize the list view:
 
-        ```python filename="books/admin.py"
+        ```python filename="book_outlet/admin.py"
         from django.contrib import admin
         from .models import Book
 
@@ -128,7 +128,7 @@ By default, the admin panel won't show your custom models. You need to **registe
     <Tabs.Tab>
         The decorator syntax is a concise alternative to `register()`:
 
-        ```python filename="books/admin.py"
+        ```python filename="book_outlet/admin.py"
         from django.contrib import admin
         from .models import Book
 
@@ -157,7 +157,7 @@ Here's where the relevant files live in a typical Django project:
             <FileTree.File name="settings.py" />
             <FileTree.File name="urls.py" />
         </FileTree.Folder>
-        <FileTree.Folder name="books" defaultOpen>
+        <FileTree.Folder name="book_outlet" defaultOpen>
             <FileTree.File name="models.py" />
             <FileTree.File name="admin.py" />
             <FileTree.File name="views.py" />

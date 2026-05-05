@@ -14,6 +14,20 @@ By the end of this guide, you will know how to:
 - Add a database index to the slug field for better query performance
 
 ---
+## Step 0: Update `settings/urls.py`
+
+
+```python
+# urls.py
+
+urlpatterns = [
+    # Before
+    path("", include("book_outlet.urls")),
+
+    # After
+    path("books/", include("book_outlet.urls")),
+]
+```
 
 ## Step 1: Update `urls.py`
 
@@ -42,9 +56,12 @@ Change the view function to accept a `slug` parameter and filter by it:
 ```python
 # views.py
 
-def book_detail(request, slug):  # Accept slug instead of id
-    book = get_object_or_404(Book, slug=slug)  # Filter by slug field
-    return render(request, "books/book_detail.html", {"book": book})
+def book_detail(request, slug):
+    book = get_object_or_404(Book, slug=slug)
+    context = {
+        'books': book,
+    }
+    return render(request, "book_outlet/book_detail.html", context)
 ```
 
 **How the lookup works:**
@@ -68,7 +85,7 @@ Pass `self.slug` instead of `self.id` when reversing the URL:
 from django.urls import reverse
 
 class Book(models.Model):
-    slug = models.SlugField(max_length=200, null=True, default="")
+    slug = models.SlugField(unique=True)
 
     def get_absolute_url(self):
         return reverse("book-detail", args=[self.slug])  # Use slug, not self.id

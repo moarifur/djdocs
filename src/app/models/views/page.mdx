@@ -104,16 +104,24 @@ Each book is rendered as a clickable link pointing to its detail page.
 `book_outlet/views.py`
 
 ```python
+
 from django.shortcuts import render, get_object_or_404
 from .models import Book
 
 def index(request):
     books = Book.objects.all()
-    return render(request, "book_outlet/index.html", {"books": books})
+    context = {
+        'books': books,
+    }
+    return render(request, 'book_outlet/index.html', context)
 
 def book_detail(request, id):
     book = get_object_or_404(Book, pk=id)
-    return render(request, "book_outlet/book_detail.html", {"book": book})
+    context = {
+        'books': book,
+    }
+    return render(request, "book_outlet/book_detail.html", context)
+
 ```
 
 The `index` view fetches all books from the database and passes them to the template via a context dictionary. The `book_detail` view retrieves a single book by its primary key, returning a 404 if it doesn't exist.
@@ -138,7 +146,7 @@ urlpatterns = [
 
 ## Wiring Into the Project URLs
 
-`<your_project>/urls.py`
+`bookstore/urls.py`
 
 ```python
 from django.contrib import admin

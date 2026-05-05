@@ -54,12 +54,12 @@ books = Book.objects.filter(is_best_selling=True)
 To make the queried data available in your template, add it to the view's context dictionary:
 
 ```python
-def book_list(request):
+def index(request):
     books = Book.objects.all()
     context = {
         'books': books,
     }
-    return render(request, 'books/list.html', context)
+    return render(request, 'book_outlet/index.html', context)
 ```
 
 The key name in the context (`'books'`) is what you'll reference in the template.
@@ -107,18 +107,18 @@ The `Book` model in this example exposes the following attributes:
 
     ```python
     # views.py
-    from django.shortcuts import render
-    from .models import Book
-
-    def book_list(request):
+    def index(request):
     books = Book.objects.all()
-    return render(request, 'books/list.html', {'books': books})
+    context = {
+    'books': books,
+}
+    return render(request, 'book_outlet/index.html', context)
     ```
 
     ### Write your template
 
     ```django
-    <!-- books/list.html -->
+    <!-- book_outlet/index.html -->
     <ul>
         {% for book in books %}
         <li>{{ book.title }} (Rating: {{ book.rating }})</li>

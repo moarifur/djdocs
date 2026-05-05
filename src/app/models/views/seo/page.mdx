@@ -41,13 +41,12 @@ class Book(models.Model):
     title = models.CharField(max_length=200)
     # ... other fields ...
 
-    slug = models.SlugField(default="", null=False)
+    slug = models.SlugField(unique=True)
 ```
 
 **Key points:**
 - `SlugField` enforces slug formatting (e.g. `harry-potter-one`)
-- `default=""` sets an empty string as the initial value
-- `null=False` means the field must never be `NULL` in the database
+- `unique=True` ensures the database enforces that no two records in that table have the same slug
 
 ---
 
@@ -62,7 +61,7 @@ from django.utils.text import slugify
 
 class Book(models.Model):
     title = models.CharField(max_length=200)
-    slug = models.SlugField(default="", null=False)
+    slug = models.SlugField(unique=True)
 
     def save(self, *args, **kwargs):
         self.slug = slugify(self.title)
@@ -104,13 +103,13 @@ Any time you change a model (add a field, modify a field, etc.), you must create
     ### Make migrations
 
     ```bash
-    python3 manage.py makemigrations
+    python manage.py makemigrations
     ```
 
     ### Apply migrations
 
     ```bash
-    python3 manage.py migrate
+    python manage.py migrate
     ```
 
 </Steps>
@@ -128,26 +127,18 @@ The overridden `save()` only runs on new saves going forward. Existing database 
 Use the Django shell to update existing entries manually:
 
 ```bash
-python3 manage.py shell
+python manage.py shell
 ```
 
 ```python
-from book_outlet.models import Book
+from django.utils.text import slugify
 
-# Fetch an existing book and re-save to trigger slug generation
-book = Book.objects.get(title__ilike="Harry Potter One")
-book.save()
+for book in Book.objects.all():
+    book.slug = slugify(book.title)
+    book.save()
 
 # Verify the slug was set
 print(book.slug)  # → "harry-potter-one"
-```
-
-Repeat for each existing record:
-
-```python
-# Update all books at once
-for book in Book.objects.all():
-    book.save()
 ```
 
 <Callout type="info">
@@ -168,7 +159,7 @@ class Book(models.Model):
     rating = models.IntegerField()
     author = models.CharField(max_length=100, null=True)
     is_bestselling = models.BooleanField(default=False)
-    slug = models.SlugField(default="", null=False)
+    slug = models.SlugField(unique=True)
 
     def save(self, *args, **kwargs):
         self.slug = slugify(self.title)
@@ -183,24 +174,3 @@ class Book(models.Model):
 ## Next Steps
 
 Now that slugs are being generated, the next step is to use the slug in your URL patterns instead of the numeric ID:
-
-```python filename="book_outlet/urls.py"
-from django.urls import path
-from . import views
-
-urlpatterns = [
-    path("", views.index, name="index"),
-    path("<slug:slug>", views.book_detail, name="book-detail"),
-]
-```
-
-And update your view to look up by slug:
-
-```python filename="book_outlet/views.py"
-from django.shortcuts import get_object_or_404
-from .models import Book
-
-def book_detail(request, slug):
-    book = get_object_or_404(Book, slug=slug)
-    return render(request, "book_outlet/book_detail.html", {"book": book})
-```
