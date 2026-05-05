@@ -1,0 +1,206 @@
+---
+title: Slug Fields & Overriding the Save Method
+description: Learn how to add SEO-friendly slug URLs to your Django models by overriding the save method, and how to apply aggregation methods for counts and averages.
+---
+
+import { Callout, Steps } from 'nextra/components'
+
+# Slug Fields & Overriding the Save Method
+
+## Overview
+
+This guide covers two important Django model techniques:
+
+- Adding a **slug field** to your model for cleaner, SEO-friendly URLs
+- **Overriding the `save()` method** to auto-populate the slug from the title
+- Running **migrations** after model changes
+- Using Django's shell to update existing records
+
+---
+
+## Why Use Slugs?
+
+Instead of URLs like `/books/1`, slugs give you human-readable URLs like `/books/harry-potter-one`. This is better for users and for search engines.
+
+<Callout type="info">
+    The slug concept is the same one used in standard blog applications — a URL-safe version of a title string.
+</Callout>
+
+---
+
+## Step 1: Add a `SlugField` to Your Model
+
+Django has a built-in `SlugField` that validates slug-formatted strings automatically.
+
+```python filename="book_outlet/models.py"
+from django.db import models
+from django.utils.text import slugify
+
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    # ... other fields ...
+
+    slug = models.SlugField(default="", null=False)
+```
+
+**Key points:**
+- `SlugField` enforces slug formatting (e.g. `harry-potter-one`)
+- `default=""` sets an empty string as the initial value
+- `null=False` means the field must never be `NULL` in the database
+
+---
+
+## Step 2: Override the `save()` Method
+
+To auto-populate the slug whenever a book is saved, override the model's `save()` method.
+
+```python filename="book_outlet/models.py"
+from django.db import models
+from django.utils.text import slugify
+
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(default="", null=False)
+
+    def save(self, *args, **kwargs):
+        self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+```
+
+<Callout type="warning">
+    Always call `super().save(*args, **kwargs)` inside your overridden method. Without it, Django's built-in save logic (which writes to the database) will never run.
+</Callout>
+
+**How it works:**
+
+| Step | What happens |
+|------|-------------|
+| `save()` is called | Your custom method runs first |
+| `slugify(self.title)` | Converts `"Harry Potter One"` → `"harry-potter-one"` |
+| `super().save(...)` | Calls Django's original save, persisting data to the DB |
+| `*args, **kwargs` | Forwards any extra arguments to the parent method |
+
+### What is `slugify`?
+
+`slugify` is a built-in Django utility from `django.utils.text`. It transforms a plain string into a valid slug:
+
+```python
+from django.utils.text import slugify
+
+slugify("Harry Potter One")
+# → "harry-potter-one"
+```
+
+---
+
+## Step 3: Create and Run Migrations
+
+Any time you change a model (add a field, modify a field, etc.), you must create and apply migrations to keep the database schema in sync.
+
+<Steps>
+
+    ### Make migrations
+
+    ```bash
+    python3 manage.py makemigrations
+    ```
+
+    ### Apply migrations
+
+    ```bash
+    python3 manage.py migrate
+    ```
+
+</Steps>
+
+<Callout type="error">
+    Skipping migrations after a model change will cause your model and database to fall out of sync, which leads to errors at runtime.
+</Callout>
+
+---
+
+## Step 4: Update Existing Records
+
+The overridden `save()` only runs on new saves going forward. Existing database records will not have their slug auto-set until you re-save them.
+
+Use the Django shell to update existing entries manually:
+
+```bash
+python3 manage.py shell
+```
+
+```python
+from book_outlet.models import Book
+
+# Fetch an existing book and re-save to trigger slug generation
+book = Book.objects.get(title__ilike="Harry Potter One")
+book.save()
+
+# Verify the slug was set
+print(book.slug)  # → "harry-potter-one"
+```
+
+Repeat for each existing record:
+
+```python
+# Update all books at once
+for book in Book.objects.all():
+    book.save()
+```
+
+<Callout type="info">
+    In a real project, you'd define your model fully before seeding data, so this manual step wouldn't be needed.
+</Callout>
+
+---
+
+## Full Model Example
+
+```python filename="book_outlet/models.py"
+from django.db import models
+from django.utils.text import slugify
+
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    rating = models.IntegerField()
+    author = models.CharField(max_length=100, null=True)
+    is_bestselling = models.BooleanField(default=False)
+    slug = models.SlugField(default="", null=False)
+
+    def save(self, *args, **kwargs):
+        self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.title} ({self.rating})"
+```
+
+---
+
+## Next Steps
+
+Now that slugs are being generated, the next step is to use the slug in your URL patterns instead of the numeric ID:
+
+```python filename="book_outlet/urls.py"
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("", views.index, name="index"),
+    path("<slug:slug>", views.book_detail, name="book-detail"),
+]
+```
+
+And update your view to look up by slug:
+
+```python filename="book_outlet/views.py"
+from django.shortcuts import get_object_or_404
+from .models import Book
+
+def book_detail(request, slug):
+    book = get_object_or_404(Book, slug=slug)
+    return render(request, "book_outlet/book_detail.html", {"book": book})
+```

@@ -1,0 +1,238 @@
+---
+title: Django Admin Interface
+description: Learn how to use and customize Django's built-in administration interface to manage your application data.
+---
+
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Django Admin Summary
+
+Django ships with a powerful, built-in administration interface that lets you manage your application's data without writing a single line of custom UI code. This guide covers everything you need to get started and customize it for your project.
+
+<Callout type="info">
+    The Django admin is intended for **site owners and developers**, not end users. It's ideal for managing core content like blog posts or products — not user-generated content like orders.
+</Callout>
+
+---
+
+## How It Works
+
+The admin interface is powered by the `django.contrib.admin` app, which is included in `INSTALLED_APPS` by default. It's wired up via a single URL entry already present in your project's `urls.py`:
+
+```python filename="book_store/urls.py"
+from django.contrib import admin
+from django.urls import path
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    # ... your other URLs
+]
+```
+
+Visiting `/admin` on your running development server will show a login form — entirely provided by Django, with no custom code needed.
+
+---
+
+## Getting Started
+
+<Steps>
+
+    ### Create a Superuser
+
+    Before you can log in, you need to create an admin account. Stop your dev server, then run:
+
+    ```bash
+    python manage.py createsuperuser
+    ```
+
+    You'll be prompted for a username, email, and password.
+
+    <Callout type="warning">
+        Always use a strong, unique password for your superuser — especially when deploying to production. Django will warn you if the password is too short or too similar to your username/email.
+    </Callout>
+
+    ### Start the Server and Log In
+
+    ```bash
+    python manage.py runserver
+    ```
+
+    Navigate to `http://127.0.0.1:8000/admin` and log in with the credentials you just created. You'll see the admin dashboard with user management built in.
+
+    ### Register Your Models
+
+    Your custom models won't appear in the admin automatically. Open your app's `admin.py` and register them:
+
+    ```python filename="book_outlet/admin.py"
+    from django.contrib import admin
+    from .models import Book
+
+    admin.site.register(Book)
+    ```
+
+    After saving, reload the admin page — your `Book` model will now appear under your app's name, ready to be browsed, added, edited, and deleted.
+
+</Steps>
+
+---
+
+## Project Structure
+
+Here's how the relevant files fit together in a typical Django project:
+
+<FileTree>
+    <FileTree.Folder name="book_store" defaultOpen>
+        <FileTree.File name="urls.py" />
+        <FileTree.File name="settings.py" />
+    </FileTree.Folder>
+    <FileTree.Folder name="book_outlet" defaultOpen>
+        <FileTree.File name="admin.py" />
+        <FileTree.File name="models.py" />
+        <FileTree.File name="views.py" />
+    </FileTree.Folder>
+</FileTree>
+
+The two files you'll primarily work with are `models.py` (to configure field behavior) and `admin.py` (to configure the admin interface itself).
+
+---
+
+## Configuring Field Behavior
+
+Sometimes a field like `slug` is auto-generated, but the admin form will still require it to be filled in. There are two ways to handle this directly on the model field.
+
+<Tabs items={['blank=True', 'editable=False']}>
+    <Tabs.Tab>
+        Setting `blank=True` on a field tells Django the field may be submitted empty in a form. This prevents the admin from marking it as required:
+
+        ```python filename="book_outlet/models.py"
+        slug = models.SlugField(unique=True, blank=True)
+        ```
+
+        <Callout>
+            `blank=True` affects **form validation** (admin and otherwise). It's distinct from `null=True`, which affects whether `NULL` is allowed in the database column.
+        </Callout>
+    </Tabs.Tab>
+    <Tabs.Tab>
+        Setting `editable=False` hides the field from the admin form entirely — useful when a field is always computed and never needs manual input:
+
+        ```python filename="book_outlet/models.py"
+        slug = models.SlugField(unique=True, editable=False)
+        ```
+
+        <Callout type="warning">
+            With `editable=False`, the slug field won't appear in the admin form at all. If you want it visible but read-only, use `readonly_fields` in `ModelAdmin` instead (see below).
+        </Callout>
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Advanced Admin Customization with `ModelAdmin`
+
+For fine-grained control over the admin interface, create a `ModelAdmin` class in `admin.py` and pass it as the second argument to `register()`.
+
+```python filename="book_outlet/admin.py"
+from django.contrib import admin
+from .models import Book
+
+class BookAdmin(admin.ModelAdmin):
+    pass  # add configuration here
+
+admin.site.register(Book, BookAdmin)
+```
+
+<Callout type="info">
+    The naming convention `<ModelName>Admin` (e.g. `BookAdmin`) is a strong convention, not a requirement.
+</Callout>
+
+### `readonly_fields`
+
+Makes specific fields visible but not editable in the admin form:
+
+```python
+class BookAdmin(admin.ModelAdmin):
+readonly_fields = ("slug",)
+```
+
+This is useful when you want to show an auto-generated value (like a slug) without allowing it to be changed.
+
+### `prepopulated_fields`
+
+Automatically fills a field based on the value of another field as you type. Ideal for slugs:
+
+```python
+class BookAdmin(admin.ModelAdmin):
+prepopulated_fields = {"slug": ("title",)}
+```
+
+Django detects that `slug` is a `SlugField` and runs `slugify()` on the source field automatically.
+
+<Callout type="error">
+    A field **cannot** be in both `readonly_fields` and `prepopulated_fields` at the same time. If it is, Django will raise a `KeyError`. Remove it from `readonly_fields` if you want the live preview behavior.
+</Callout>
+
+### `list_filter`
+
+Adds a sidebar with filter options when viewing the list of all records:
+
+```python
+class BookAdmin(admin.ModelAdmin):
+list_filter = ("author", "rating")
+```
+
+### `list_display`
+
+Controls which columns appear in the list view instead of the default string representation:
+
+```python
+class BookAdmin(admin.ModelAdmin):
+list_display = ("title", "author")
+```
+
+### Putting It All Together
+
+```python filename="book_outlet/admin.py"
+from django.contrib import admin
+from .models import Book
+
+class BookAdmin(admin.ModelAdmin):
+prepopulated_fields = {"slug": ("title",)}
+list_display = ("title", "author")
+list_filter = ("author", "rating")
+
+admin.site.register(Book, BookAdmin)
+```
+
+---
+
+## Built-in Form Validation
+
+The Django admin automatically adds validation rules to forms based on your model's field types. For example, a `SlugField` will reject values that contain spaces or special characters.
+
+<Callout>
+    Custom validators defined on your model fields are also respected by the admin form — no extra configuration needed.
+</Callout>
+
+---
+
+## Further Reading
+
+The Django admin supports many more configuration options. The official documentation is comprehensive, but the defaults are sensible — you often won't need to change much.
+
+<Callout type="info">
+    **Official docs:** [The Django admin site](https://docs.djangoproject.com/en/stable/ref/contrib/admin/)
+    Don't feel overwhelmed by the length of the reference. Most projects only need a handful of customizations.
+</Callout>
+
+---
+
+## Summary
+
+| Feature | Where to configure | Example |
+|---|---|---|
+| Allow blank in form | Model field (`blank=True`) | `slug = SlugField(blank=True)` |
+| Hide field from form | Model field (`editable=False`) | `slug = SlugField(editable=False)` |
+| Show field as read-only | `ModelAdmin.readonly_fields` | `readonly_fields = ("slug",)` |
+| Auto-fill from another field | `ModelAdmin.prepopulated_fields` | `{"slug": ("title",)}` |
+| Add list view filters | `ModelAdmin.list_filter` | `list_filter = ("rating",)` |
+| Customize list columns | `ModelAdmin.list_display` | `list_display = ("title", "author")` |

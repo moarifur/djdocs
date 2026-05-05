@@ -1,0 +1,156 @@
+---
+title: Django Admin Registration & Customization
+description: Learn how to register models with Django's admin interface and handle auto-generated fields
+---
+
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Django Admin: Registering & Customizing Models
+
+Django's administration interface is a powerful built-in tool — but it only manages the models you explicitly register. This guide walks you through registering your models and handling common customization challenges.
+
+<Callout type="info">
+    Not all models need to appear in the admin panel. Only register models that you or your team need to moderate, review, or manage manually.
+</Callout>
+
+---
+
+## Project Structure
+
+Your Django app includes an `admin.py` file specifically for this purpose:
+
+<FileTree>
+    <FileTree.Folder name="book_outlet" defaultOpen>
+        <FileTree.File name="models.py" />
+        <FileTree.File name="admin.py" active />
+        <FileTree.File name="views.py" />
+        <FileTree.File name="urls.py" />
+    </FileTree.Folder>
+</FileTree>
+
+The `admin.py` file is generated automatically but remains unused until you register your models.
+
+---
+
+## Registering a Model
+
+<Steps>
+
+    ### Import your model
+
+    Open `admin.py` and import the model(s) you want to manage:
+
+    ```python filename="book_outlet/admin.py"
+    from django.contrib import admin
+    from .models import Book
+    ```
+
+    ### Register the model with the admin site
+
+    Use `admin.site.register()` to make the model visible in the admin interface:
+
+    ```python filename="book_outlet/admin.py"
+    from django.contrib import admin
+    from .models import Book
+
+    admin.site.register(Book)
+    ```
+
+    ### Save and reload
+
+    Save the file and navigate to `/admin` in your browser. Your model will now appear under its app name.
+
+</Steps>
+
+<Callout type="tip">
+    The list display for each record is controlled by the `__str__` method on your model. For example, returning `f"{self.title} ({self.rating})"` will display title and rating in the admin list view.
+</Callout>
+
+---
+
+## What You Can Do in the Admin Panel
+
+Once registered, your model supports the following out of the box:
+
+<Tabs items={['View Records', 'Edit a Record', 'Add a Record']}>
+    <Tabs.Tab>
+        Click on the model name (e.g. **Books**) to see a list of all existing records. The display text comes from your model's `__str__` method.
+    </Tabs.Tab>
+    <Tabs.Tab>
+        Click any record in the list to open an edit form. You can update fields (e.g. change a rating) and click **Save**.
+    </Tabs.Tab>
+    <Tabs.Tab>
+        Use the **Add Book** button at the top right to create a new record via a generated form.
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Handling Auto-Generated Fields (e.g. Slugs)
+
+<Callout type="warning">
+    **Common Problem:** If a field like `slug` is auto-generated in your model's `save()` method, Django admin will still require it to be filled in the form — since it doesn't know the field will be set programmatically.
+</Callout>
+
+### Why This Happens
+
+When you override `save()` to auto-populate a field, Django's admin form is unaware of that logic. It still renders the field as required, forcing the user to enter dummy data — which then gets overwritten anyway.
+
+```python filename="book_outlet/models.py"
+# Example: slug is auto-generated on save
+def save(self, *args, **kwargs):
+    self.slug = slugify(self.title)
+    super().save(*args, **kwargs)
+```
+
+### The Fix: Customize the Admin Class
+
+Instead of registering your model directly, create a custom `ModelAdmin` class that excludes or pre-populates the auto-generated field:
+
+<Tabs items={['Exclude the Field', 'Use prepopulated_fields']}>
+    <Tabs.Tab>
+        ```python filename="book_outlet/admin.py"
+        from django.contrib import admin
+        from .models import Book
+
+        class BookAdmin(admin.ModelAdmin):
+        exclude = ['slug']  # Hide from form; let save() handle it
+
+        admin.site.register(Book, BookAdmin)
+        ```
+
+        <Callout type="info">
+            Use `exclude` when the field is **always** set programmatically and should never be edited manually.
+        </Callout>
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```python filename="book_outlet/admin.py"
+        from django.contrib import admin
+        from .models import Book
+
+        class BookAdmin(admin.ModelAdmin):
+        prepopulated_fields = {'slug': ('title',)}
+
+        admin.site.register(Book, BookAdmin)
+        ```
+
+        <Callout type="tip">
+            Use `prepopulated_fields` when you want the slug to be **visible and editable** in the form, but auto-filled from another field (like `title`) as the user types.
+        </Callout>
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Summary
+
+| Task | What to Do |
+|------|-----------|
+| Register a model | `admin.site.register(ModelName)` in `admin.py` |
+| Control list display | Override `__str__` on your model |
+| Handle auto-generated fields | Use `exclude` or `prepopulated_fields` in a `ModelAdmin` class |
+| Add a custom admin class | Pass it as the second arg to `admin.site.register()` |
+
+<Callout type="info">
+    Next step: learn how to use `list_display`, `search_fields`, and `list_filter` in your `ModelAdmin` to make the admin panel even more powerful.
+</Callout>

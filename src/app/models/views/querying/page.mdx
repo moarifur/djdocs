@@ -1,0 +1,142 @@
+---
+title: Querying and Displaying Data with Django ORM
+description: Learn how to fetch data from the database using Django models and render it in templates.
+---
+
+import { Callout, Steps } from 'nextra/components'
+
+# Querying and Displaying Data with Django ORM
+
+This guide covers how to use Django's ORM to query database records and pass them to templates for rendering.
+
+---
+
+## Importing Your Model
+
+To interact with your database, start by importing the relevant model into your view file.
+
+```python
+from .models import Book
+```
+
+This imports the `Book` class from `models.py` in the same directory — standard Python relative import syntax.
+
+---
+
+## Querying Data
+
+Once the model is imported, you can use the `objects` manager to run queries.
+
+### Fetching All Records
+
+Use `.all()` to retrieve every record in the table:
+
+```python
+books = Book.objects.all()
+```
+
+### Filtering Records
+
+Use `.filter()` with your conditions to narrow results:
+
+```python
+books = Book.objects.filter(is_best_selling=True)
+```
+
+<Callout type="info">
+    The same ORM syntax you use in the Django interactive shell works directly inside views and anywhere else in your Python code.
+</Callout>
+
+---
+
+## Passing Data to the Template
+
+To make the queried data available in your template, add it to the view's context dictionary:
+
+```python
+def book_list(request):
+    books = Book.objects.all()
+    context = {
+        'books': books,
+    }
+    return render(request, 'books/list.html', context)
+```
+
+The key name in the context (`'books'`) is what you'll reference in the template.
+
+---
+
+## Rendering Data in the Template
+
+Use Django's template language to loop over the queryset and display each record.
+
+### Basic Loop
+
+```django
+{% for book in books %}
+  <li>{{ book.title }}</li>
+{% endfor %}
+```
+
+### Accessing Model Attributes
+
+You can access any attribute defined on the model using dot notation:
+
+```django
+{% for book in books %}
+  <li>{{ book.title }} (Rating: {{ book.rating }})</li>
+{% endfor %}
+```
+
+The `Book` model in this example exposes the following attributes:
+
+| Attribute | Description |
+|---|---|
+| `title` | The book's title |
+| `rating` | Numeric rating |
+| `author` | Author name |
+| `is_best_selling` | Boolean flag |
+
+---
+
+## Full Example
+
+<Steps>
+
+    ### Define your view
+
+    ```python
+    # views.py
+    from django.shortcuts import render
+    from .models import Book
+
+    def book_list(request):
+    books = Book.objects.all()
+    return render(request, 'books/list.html', {'books': books})
+    ```
+
+    ### Write your template
+
+    ```django
+    <!-- books/list.html -->
+    <ul>
+        {% for book in books %}
+        <li>{{ book.title }} (Rating: {{ book.rating }})</li>
+        {% endfor %}
+    </ul>
+    ```
+
+    ### View the result
+
+    Reload your browser — the list will populate dynamically from the database.
+
+</Steps>
+
+---
+
+## Key Takeaways
+
+- Use `Model.objects.all()` to fetch all records, and `Model.objects.filter(...)` for conditional queries.
+- Pass the queryset via the `context` dict in your view.
+- Reference the context key in the template to loop over and display records.
+- Dot notation (`book.title`) accesses model field values in templates.

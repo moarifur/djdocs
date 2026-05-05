@@ -1,0 +1,173 @@
+# Configuring Slug Fields in the Django Admin
+
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+When using auto-generated slug fields in Django, you need to configure them properly so the Django Admin doesn't block form submission or show unnecessary editable inputs. This guide covers the available options and when to use each.
+
+---
+
+## The Problem
+
+By default, Django marks every model field as **required** in the Admin form. If your slug is auto-populated via a `pre_save` signal or `save()` override, the Admin will still demand the user fill it in — causing validation errors even though the field will be set programmatically.
+
+<Callout type="error" emoji="🚫">
+    Submitting an Admin form with an empty slug field will fail by default, even if your code always sets the slug before saving.
+</Callout>
+
+---
+
+## Your Options
+
+There are three approaches to handling auto-generated slug fields in the Django Admin. Each has different trade-offs.
+
+<Tabs items={['blank=True', 'editable=False', 'Custom ModelAdmin']}>
+    <Tabs.Tab>
+
+        ### `blank=True` — Allow Empty Submissions
+
+        Add `blank=True` to your `SlugField` definition:
+
+        ```python filename="models.py" {4}
+        from django.db import models
+
+        class Story(models.Model):
+        slug = models.SlugField(blank=True)
+        title = models.CharField(max_length=200)
+        rating = models.IntegerField()
+        ```
+
+        <Callout type="info">
+            `blank=True` has **two distinct effects**:
+
+            1. **Database level** — the column may store an empty string (though your code will always populate it before saving).
+            2. **Admin form level** — Django marks the field as optional, so the form validates successfully even when left empty.
+        </Callout>
+
+        **Result:** The slug field still appears in the Admin form, but submitting it empty no longer causes a validation error. Your `pre_save` logic runs as usual and fills in the value.
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ### `editable=False` — Hide the Field Entirely
+
+        Add `editable=False` to your `SlugField` definition:
+
+        ```python filename="models.py" {4}
+        from django.db import models
+
+        class Story(models.Model):
+        slug = models.SlugField(editable=False)
+        title = models.CharField(max_length=200)
+        rating = models.IntegerField()
+        ```
+
+        <Callout type="warning">
+            With `editable=False`, the slug field **will not appear anywhere** in the Admin form — not even as a read-only display. The auto-generated value is saved correctly, but editors cannot see what slug was assigned.
+        </Callout>
+
+        **Result:** The cleanest form UI if you never want editors to see or think about slugs.
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ### Custom `ModelAdmin` — Show as Read-Only
+
+        If you want the best of both worlds — the slug is visible to editors but cannot be changed — customize the `ModelAdmin` class in `admin.py`:
+
+        ```python filename="admin.py"
+        from django.contrib import admin
+        from .models import Story
+
+        @admin.register(Story)
+        class StoryAdmin(admin.ModelAdmin):
+        readonly_fields = ('slug',)
+        ```
+
+        <Callout type="tip">
+            This is the **recommended approach** for most projects. Editors can see the auto-generated slug while filling out the form, but cannot accidentally override it.
+        </Callout>
+
+        **Result:** The slug field renders in the Admin as plain text (pre-populated with the generated value) while remaining non-editable.
+
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Step-by-Step: Choosing and Applying a Fix
+
+<Steps>
+    ### Identify your use case
+
+    Ask yourself: do your editors need to *see* the slug?
+
+    - **No** → use `editable=False`
+    - **Yes, but not change it** → use a custom `ModelAdmin` with `readonly_fields`
+    - **Yes, and optionally override it** → use `blank=True`
+
+    ### Update your model field
+
+    Edit your model in `models.py` with the chosen argument:
+
+    ```python filename="models.py"
+    # Option A
+    slug = models.SlugField(blank=True)
+
+    # Option B
+    slug = models.SlugField(editable=False)
+    ```
+
+    ### Create and apply migrations (if needed)
+
+    `blank=True` changes only form validation — **no migration required**.
+
+    `editable=False` is also metadata-only — **no migration required**.
+
+    ```bash
+    # Only needed if you changed null, max_length, or db_index
+    python manage.py makemigrations
+    python manage.py migrate
+    ```
+
+    ### Test in the Admin
+
+    Navigate to your model's Admin add/change page and verify:
+
+    - The form submits successfully with an empty (or hidden) slug
+    - The saved object has the correct auto-generated slug value
+
+</Steps>
+
+---
+
+## Quick Comparison
+
+| Option | Field visible in Admin? | User can edit? | Migration needed? |
+|---|---|---|---|
+| `blank=True` | ✅ Yes | ✅ Yes (optional) | ❌ No |
+| `editable=False` | ❌ No | ❌ No | ❌ No |
+| `readonly_fields` in `ModelAdmin` | ✅ Yes | ❌ No | ❌ No |
+
+---
+
+## Project Structure Reference
+
+<FileTree>
+    <FileTree.Folder name="myapp" defaultOpen>
+        <FileTree.File name="models.py" />
+        <FileTree.File name="admin.py" />
+        <FileTree.Folder name="migrations">
+            <FileTree.File name="0001_initial.py" />
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+<Callout type="tip" emoji="💡">
+    The `ModelAdmin` approach requires no changes to `models.py` at all — making it the safest option if you've already run migrations in production and want to avoid touching the model definition.
+</Callout>
+
+---
+
+## Further Customization
+
+The field-level arguments (`blank`, `editable`) only cover basic Admin configuration. For more advanced control — such as custom widgets, field ordering, inline previews, or conditional display logic — you'll need to go deeper into `ModelAdmin` customization. That is covered in the next section.

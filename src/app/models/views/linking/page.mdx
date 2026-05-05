@@ -1,0 +1,119 @@
+# Linking to Detail Pages in Django
+
+This guide covers how to wire up list pages to detail pages using named URLs and the `get_absolute_url()` method.
+
+---
+
+## Step 1: Add a Link in `index.html`
+
+Open your `index.html` template and wrap the book name with an anchor tag. You can choose to link just the title and exclude the rating — it's up to you.
+
+Make sure the `href` points to the correct detail page URL.
+
+---
+
+## Step 2: Name Your URLs in `urls.py`
+
+Instead of hardcoding URL paths, it's best practice to assign **names** to your URL patterns. This lets Django construct URLs for you automatically.
+
+In `urls.py`, add the `name` keyword argument to your book detail URL pattern:
+
+```python
+# urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("books/<int:pk>/", views.book_detail, name="book-detail"),
+]
+```
+
+> The name `"book-detail"` is a convention — you can choose any name you like.
+
+---
+
+## Step 3: Use the `{% url %}` Tag in the Template
+
+With the URL named, update `index.html` to use Django's `{% url %}` template tag instead of a hardcoded path:
+
+```html
+<!-- index.html -->
+{% for book in books %}
+  <a href="{% url 'book-detail' book.id %}">{{ book.title }}</a>
+{% endfor %}
+```
+
+The `book.id` value fills in the dynamic path segment (`<int:pk>`). The `id` field is automatically added to every model by Django.
+
+---
+
+## Alternative: `get_absolute_url()` on the Model
+
+import { Callout } from 'nextra/components'
+
+<Callout type="info">
+    This is an optional but recommended pattern. It centralizes URL construction logic inside the model itself.
+</Callout>
+
+### What is `get_absolute_url()`?
+
+Django recognizes a special method called `get_absolute_url()` on model classes. When defined, it returns the canonical URL for a specific model instance. Django calls this automatically in some parts of the framework (e.g., the admin), and you can also call it manually in templates or Python code.
+
+### Implementing It in `models.py`
+
+Import the `reverse` function from `django.urls` and define the method on your model:
+
+```python
+# models.py
+from django.db import models
+from django.urls import reverse
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    rating = models.IntegerField()
+
+    def get_absolute_url(self):
+        return reverse("book-detail", args=[self.id])
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `"book-detail"` | The name of the URL pattern to reverse |
+| `args=[self.id]` | The dynamic segment(s) required by the URL |
+
+> **Note:** `reverse()` is the Python equivalent of the `{% url %}` template tag.
+
+---
+
+## Using `get_absolute_url()` in a Template
+
+Once the method is defined, you can use it directly in your template via interpolation. Note that Django calls the method for you — **do not add parentheses**:
+
+```html
+<!-- index.html -->
+{% for book in books %}
+  <a href="{{ book.get_absolute_url }}">{{ book.title }}</a>
+{% endfor %}
+```
+
+Django will invoke `get_absolute_url` and render the returned URL string.
+
+---
+
+## Comparison: `{% url %}` Tag vs. `get_absolute_url()`
+
+| Approach | Where Logic Lives | Best For |
+|----------|-------------------|----------|
+| `{% url 'book-detail' book.id %}` | Template | Quick, one-off links |
+| `book.get_absolute_url` | Model method | Reusable across templates and Python code |
+
+Both approaches are valid. `get_absolute_url()` is preferred when you need to reference the same URL in multiple places — it keeps URL construction logic in one place and makes your code easier to maintain.
+
+---
+
+## Summary
+
+1. Name your URL patterns in `urls.py` using the `name` argument.
+2. Use `{% url 'url-name' args %}` in templates to generate URLs dynamically.
+3. Optionally, define `get_absolute_url()` on your model using `reverse()` to centralize URL logic.
+4. In templates, call `get_absolute_url` **without parentheses** — Django handles the invocation.

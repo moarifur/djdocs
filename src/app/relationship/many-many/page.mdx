@@ -1,0 +1,106 @@
+---
+title: Many-to-Many Relations in Django
+description: Set up and understand ManyToMany relations in Django, including how Django stores them behind the scenes.
+---
+
+import { Callout, Tabs, Steps, FileTree, Cards } from 'nextra/components'
+
+# Many-to-Many Relations in Django
+
+A **ManyToMany** relation is used when one record can relate to many others, and each of those others can also relate back to many records.
+
+<Callout type="info">
+    Django handles ManyToMany relations with an automatically created intermediate table, so you only define the field on one model.
+</Callout>
+
+## Example scenario
+
+In this guide, we use a book-and-country example: one book can be published in multiple countries, and one country can publish many books.
+
+<Tabs items={["Book model", "Country model"]}>
+    <Tabs.Tab>
+
+        ```python
+        from django.db import models
+
+
+        class Book(models.Model):
+        title = models.CharField(max_length=200)
+        published_countries = models.ManyToManyField('Country')
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ```python
+        from django.db import models
+
+
+        class Country(models.Model):
+        name = models.CharField(max_length=80)
+        code = models.CharField(max_length=2)
+        ```
+
+    </Tabs.Tab>
+</Tabs>
+
+## How it works
+
+A ManyToMany relation is not stored as a list inside either table. Instead, Django creates a third table behind the scenes to map each book to each country.
+
+<Callout type="warning">
+    You do **not** add `on_delete` to `ManyToManyField`, because Django manages the relationship through the intermediate mapping table.
+</Callout>
+
+<Cards>
+    <Cards.Card href="#how-it-works" title="Behind the scenes" description="Learn why Django uses an intermediate table." />
+    <Cards.Card href="#setup-steps" title="Setup steps" description="Create the field and run migrations." />
+</Cards>
+
+## Setup steps
+
+<Steps>
+    ### Add the related model
+    Create the second model first if needed, for example `Country` with fields like `name` and `code`.
+
+    ### Add the ManyToMany field
+    Place `models.ManyToManyField(Country)` on the model that makes the most sense for your app structure.
+
+    ### Create migrations
+    Run `python3 manage.py makemigrations` to generate the database changes.
+
+    ### Apply migrations
+    Run `python3 manage.py migrate` to write the changes to the database.
+</Steps>
+
+## Recommended project structure
+
+<FileTree>
+    <FileTree.File name="app" />
+    <FileTree.File name="models.py" />
+    <FileTree.File name="migrations" />
+    <FileTree.File name="0001_initial.py" />
+</FileTree>
+
+## Key points
+
+- Define the relationship on the model where it feels most natural.
+- Django creates the join table automatically.
+- Deleting one related object removes only the mapping rows, not the other model itself.
+- `ManyToManyField` does not accept `on_delete`.
+
+## Minimal example
+
+```python
+from django.db import models
+
+
+class Country(models.Model):
+    name = models.CharField(max_length=80)
+    code = models.CharField(max_length=2)
+
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    published_countries = models.ManyToManyField(Country)
+```

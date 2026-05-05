@@ -1,0 +1,219 @@
+---
+title: Working with One-to-One Relations in Django
+description: Learn how to create, connect, and query one-to-one related models using the Django shell and admin panel.
+---
+
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Working with One-to-One Relations in Django
+
+This guide covers how to use the Django shell to create model instances, establish one-to-one relationships, and traverse relations in both directions.
+
+<Callout type="info">
+    This guide uses a `book_outlet` app with three models: `Author`, `Address`, and `Book`. The `Author` model has a one-to-one relationship with `Address`.
+</Callout>
+
+---
+
+## Project Model Structure
+
+<FileTree>
+    <FileTree.Folder name="book_outlet" defaultOpen>
+        <FileTree.Folder name="models" defaultOpen>
+            <FileTree.File name="Author" />
+            <FileTree.File name="Address" />
+            <FileTree.File name="Book" />
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Opening the Django Shell
+
+Start by opening the Django shell and importing your models:
+
+```bash
+python manage.py shell
+```
+
+```python
+from book_outlet.models import Author, Address, Book
+```
+
+---
+
+## Checking Existing Data
+
+Before creating new addresses, inspect the current state of your authors:
+
+```python
+Author.objects.all()
+# <QuerySet [<Author: J.K. Rowling>, ...]>
+
+jkr = Author.objects.all()[0]
+jkr.address
+# None
+```
+
+<Callout type="warning">
+    Authors created **before** the `Address` model and its relation were set up will have `None` as their address. This is expected — you can update them afterward.
+</Callout>
+
+---
+
+## Creating and Saving Address Instances
+
+<Steps>
+
+    ### Instantiate the Address objects
+
+    Create two `Address` instances by passing field values as keyword arguments:
+
+    ```python
+    address1 = Address(street="Some Street", postal_code="12345", city="London")
+    address2 = Address(street="Another Street", postal_code="67890", city="New York")
+    ```
+
+    ### Save them to the database
+
+    Calling `.save()` is required before you can use them in relations:
+
+    ```python
+    address1.save()
+    address2.save()
+    ```
+
+    <Callout type="error">
+        You **must** save a model instance before assigning it as a related object. This applies to all relationship types — one-to-one, one-to-many, and many-to-many. Trying to link an unsaved instance will raise a `ValueError`.
+    </Callout>
+
+</Steps>
+
+---
+
+## Connecting an Address to an Existing Author
+
+<Steps>
+
+    ### Retrieve the author
+
+    Use `Author.objects.get()` to fetch a specific author:
+
+    ```python
+    jkr = Author.objects.get(first_name="J.K.")
+    ```
+
+    ### Assign the address
+
+    Set the `address` field to the saved `Address` instance:
+
+    ```python
+    jkr.address = address1
+    ```
+
+    ### Persist the change
+
+    Call `.save()` to write the updated author back to the database:
+
+    ```python
+    jkr.save()
+    ```
+
+</Steps>
+
+---
+
+## Creating a New Author With an Address
+
+You can also assign an address at the time of creation:
+
+<Tabs items={['Existing Author', 'New Author']}>
+    <Tabs.Tab>
+        ```python
+        # Fetch and update an existing author
+        jkr = Author.objects.get(first_name="J.K.")
+        jkr.address = address1
+        jkr.save()
+        ```
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```python
+        # Pass the address directly when instantiating a new author
+        new_author = Author(
+        first_name="Jane",
+        last_name="Doe",
+        address=address2
+        )
+        new_author.save()
+        ```
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Traversing the Relationship
+
+### Forward: Author → Address
+
+Access the related `Address` directly from the author instance:
+
+```python
+jkr.address
+# <Address: Some Street, London>
+
+jkr.address.street
+# 'Some Street'
+```
+
+### Reverse: Address → Author
+
+Django automatically creates a reverse accessor on the `Address` model. For a one-to-one relation, the reverse accessor is simply the lowercase model name (e.g., `author`), not `author_set`:
+
+```python
+addr = Address.objects.all()[0]
+
+addr.author
+# <Author: J.K. Rowling>
+
+addr.author.first_name
+# 'J.K.'
+```
+
+<Callout>
+    **One-to-One vs. One-to-Many reverse access:**
+    - One-to-one → `address.author` (single object)
+    - One-to-many (ForeignKey) → `book_set.all()` (QuerySet)
+
+    Django creates the appropriate reverse accessor automatically based on the relationship type.
+</Callout>
+
+---
+
+## Summary
+
+| Action | Code |
+|---|---|
+| Create an address | `Address(street=..., postal_code=..., city=...)` |
+| Save to DB | `.save()` |
+| Assign relation | `author.address = address1` |
+| Traverse forward | `author.address.street` |
+| Traverse reverse | `address.author.first_name` |
+
+---
+
+## Common Pitfalls
+
+<Callout type="error" emoji="🚫">
+    **Do not link unsaved objects.** Always call `.save()` on an instance before assigning it as a related field — whether it's a new or existing object. This rule applies to all Django relation types.
+</Callout>
+
+<Callout type="warning" emoji="⚠️">
+    **Assigning a relation does not hit the database.** Setting `author.address = address1` only updates the in-memory object. You must explicitly call `author.save()` afterward.
+</Callout>
+
+---
+
+## Next Steps
+
+After mastering shell-based relation management, you can manage these relationships visually using the **Django Admin panel** — where you can create, link, and inspect related objects through a GUI.

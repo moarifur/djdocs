@@ -7,6 +7,18 @@ export default {
         title: 'Templates in Action',
         type: 'page'
     },
+    models: {
+        title: 'Django Models',
+        type: 'page'
+    },
+    admin: {
+        title: 'Django Admin',
+        type: 'page'
+    },
+    relationship: {
+        title: 'Data Relationships',
+        type: 'page'
+    },
     workflows: {
         title: '⚙️ Workflows',
         type: 'page'

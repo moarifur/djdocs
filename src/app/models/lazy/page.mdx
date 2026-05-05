@@ -1,0 +1,110 @@
+# QuerySet Performance & Lazy Evaluation
+
+Django's ORM is designed with performance in mind. Understanding **when** queries actually hit the database is essential for writing efficient code.
+
+---
+
+## How QuerySets Work: Lazy Evaluation
+
+A common misconception is that constructing a QuerySet immediately triggers a database query. In reality, Django uses **lazy evaluation** — the database is not touched until the results are actually needed.
+
+```python
+# ❌ Misconception: this hits the database immediately
+best_sellers = Book.objects.filter(is_bestselling=True)
+
+# ✅ Reality: this only stores the *query definition*, not the results
+# The database has NOT been queried yet
+```
+
+The query is only executed when you do something that requires the actual data — such as printing, iterating, or slicing the QuerySet.
+
+```python
+# ✅ NOW the database is hit — we actually need the data
+print(best_sellers)
+```
+
+> **Why does this matter?** Lazy evaluation lets you build up complex queries incrementally without paying a performance cost until you truly need results.
+
+---
+
+## Chaining Filters
+
+Because `.filter()` returns a QuerySet (not raw data), you can chain multiple filter calls together. Each `.filter()` narrows the result further.
+
+```python
+# Step 1: Define a base QuerySet (no DB hit yet)
+best_sellers = Book.objects.filter(is_bestselling=True)
+
+# Step 2: Narrow it down further (still no DB hit)
+amazing_best_sellers = best_sellers.filter(rating__gt=4)
+```
+
+You can chain as many filters as needed. Django accumulates them into a single, optimized query.
+
+---
+
+## QuerySet Caching
+
+When a QuerySet is **evaluated** (i.e., the database is actually queried), Django caches the results internally. Subsequent access to the same QuerySet reuses the cached data instead of hitting the database again.
+
+```python
+best_sellers = Book.objects.filter(is_bestselling=True)
+amazing_best_sellers = best_sellers.filter(rating__gt=4)
+
+print(best_sellers)          # 🔴 DB hit #1 — results fetched and cached
+print(amazing_best_sellers)  # ✅ No new DB hit — filters from the cached result
+print(best_sellers)          # ✅ No new DB hit — reuses the cache
+```
+
+In the example above, **all four lines result in only one database query.**
+
+> **Cache invalidation:** The cache is held for the lifetime of the QuerySet object. If the database changes (e.g., a new record is saved), you'd need to re-evaluate the QuerySet to get fresh results.
+
+---
+
+## Practical Implication: Store QuerySets in Variables
+
+Django's caching only works when you reuse the **same QuerySet object**. If you call `.filter()` inline every time, Django treats each call as a brand-new QuerySet — no caching, no sharing.
+
+### ❌ Two database hits (no caching)
+
+```python
+# Two separate QuerySet objects — Django runs the query twice
+print(Book.objects.filter(rating__gt=3))
+print(Book.objects.filter(rating__gt=3))
+```
+
+Even though the filters are identical, Django has no way to know they are related. Each one results in a separate database query.
+
+### ✅ One database hit (with caching)
+
+```python
+# One QuerySet object stored in a variable
+good_books = Book.objects.filter(rating__gt=3)
+
+print(good_books)  # 🔴 DB hit #1 — cached
+print(good_books)  # ✅ Reuses cache — no second DB hit
+```
+
+---
+
+## Summary
+
+| Scenario | Database Hits |
+|---|---|
+| Defining a QuerySet (not evaluated) | 0 |
+| Chaining multiple `.filter()` calls | 0 |
+| Evaluating (e.g., printing) a QuerySet | 1 |
+| Re-accessing the **same** QuerySet variable | 0 (cached) |
+| Calling `.filter()` inline twice (no variable) | 2 |
+| Filtering a cached QuerySet further | 0 (uses cache) |
+
+---
+
+## Key Takeaways
+
+- **QuerySets are lazy.** No DB query runs until you evaluate them.
+- **Chaining filters is free** — you're just building a query definition.
+- **Evaluated QuerySets are cached.** Reuse the same variable to avoid redundant queries.
+- **Inline queries are not cached.** Always store reusable QuerySets in variables.
+- **Structure your code** to let Django reuse cached results wherever possible.

@@ -1,0 +1,231 @@
+---
+title: Django Admin, __str__, and Model Metadata
+description: Learn how to register a Django model in the admin, improve how it is displayed, and configure one-to-one relationships with cleaner labels.
+---
+
+import { Callout, Cards, FileTree, Steps, Tabs } from 'nextra/components'
+
+# Django Admin, `__str__`, and Model Metadata
+
+This guide shows how to register a new Django model in the admin, improve how it is displayed, and configure one-to-one relationships with cleaner labels.
+
+---
+
+## What You Will Do
+
+<Steps>
+
+    ### Register the model in Django admin
+
+    Import the model in `admin.py` and register it with `admin.site.register(...)`.
+
+    ### Improve the object label
+
+    Add `__str__` to the model so Django shows a readable label in admin and related views.
+
+    ### Customize the plural name
+
+    Use an inner `Meta` class with `verbose_name_plural` to override Django's default pluralization.
+
+    ### Understand one-to-one behavior
+
+    See why a one-to-one relation can only point to one object at a time.
+
+</Steps>
+
+---
+
+## Project Structure
+
+<FileTree>
+    <FileTree.Folder name="myapp" defaultOpen>
+        <FileTree.File name="admin.py" />
+        <FileTree.File name="models.py" />
+        <FileTree.File name="views.py" />
+        <FileTree.File name="urls.py" />
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Step-by-Step Implementation
+
+<Tabs items={['Admin', 'Model', 'Relation']}>
+
+    <Tabs.Tab>
+
+        ### Admin Setup
+
+        In `admin.py`, import the model and register it with the admin site. That is enough to make it appear in the admin interface without any custom admin class.
+
+        ```python
+        from django.contrib import admin
+        from .models import Address
+
+        admin.site.register(Address)
+        ```
+
+        <Callout type="info">
+            You can still add a custom admin class later if you want to fine-tune list display, search, filters, or ordering.
+        </Callout>
+
+    </Tabs.Tab>
+
+    <Tabs.Tab>
+
+        ### Model Customization
+
+        To make the admin output more readable, add a string representation and metadata to the model.
+
+        <Steps>
+
+            #### Add `__str__`
+
+            Django uses `__str__` when it needs a human-readable name for an object. Without it, the admin shows an unhelpful default like `Address object (1)`.
+
+            ```python
+            from django.db import models
+
+            class Address(models.Model):
+            street = models.CharField(max_length=255)
+            postal_code = models.CharField(max_length=20)
+            city = models.CharField(max_length=100)
+
+            def __str__(self):
+            return f"{self.street}, {self.postal_code} {self.city}"
+            ```
+
+            #### Add `Meta` Settings
+
+            If you want a better plural label in the admin, define an inner `Meta` class and set `verbose_name_plural`. Django uses this option to control the plural display name.
+
+            ```python
+            from django.db import models
+
+            class Address(models.Model):
+            street = models.CharField(max_length=255)
+            postal_code = models.CharField(max_length=20)
+            city = models.CharField(max_length=100)
+
+            def __str__(self):
+            return f"{self.street}, {self.postal_code} {self.city}"
+
+            class Meta:
+            verbose_name_plural = 'address entries'
+            ```
+
+            <Callout type="warning">
+                `Meta` is not a Django-only concept. It is a normal Python nested class, and Django reads special settings from it.
+            </Callout>
+
+        </Steps>
+
+        #### Before vs. After `__str__`
+
+        <Tabs items={['Before', 'After']}>
+            <Tabs.Tab>
+                Without `__str__`, Django may show something like `Address object (1)`.
+            </Tabs.Tab>
+            <Tabs.Tab>
+                With `__str__`, Django shows a readable label such as `Main Street, 12345, London`.
+            </Tabs.Tab>
+        </Tabs>
+
+    </Tabs.Tab>
+
+    <Tabs.Tab>
+
+        ### One-to-One Behavior
+
+        A one-to-one field means each related object can only be used once. If one author already uses a given address, another author cannot share that same address.
+
+        <Callout type="info">
+            If you try to assign the same address to another author, Django raises an error because the relation is already in use. This is expected behavior for `OneToOneField`.
+        </Callout>
+
+        If you need multiple authors to share the same address, use a different relation type such as **one-to-many** or **many-to-many** instead of one-to-one.
+
+        <Steps>
+
+            ### Create a new address
+
+            Add a separate address object for the second author instead of reusing the same one.
+
+            ### Assign the relation
+
+            Set the new address on the author record and save it.
+
+            ### Save and verify
+
+            Reload the admin page and confirm the relation is stored correctly.
+
+        </Steps>
+
+    </Tabs.Tab>
+
+</Tabs>
+
+---
+
+## Complete Example Files
+
+### `models.py`
+
+```python
+from django.db import models
+
+class Address(models.Model):
+street = models.CharField(max_length=255)
+postal_code = models.CharField(max_length=20)
+city = models.CharField(max_length=100)
+
+def __str__(self):
+return f"{self.street}, {self.postal_code} {self.city}"
+
+class Meta:
+verbose_name_plural = 'address entries'
+```
+
+### `admin.py`
+
+```python
+from django.contrib import admin
+from .models import Address
+
+admin.site.register(Address)
+```
+
+---
+
+## Common Pitfalls
+
+- **Forgetting to import the model** in `admin.py` before registering it.
+- **Expecting `__str__` to affect storage** — it only changes display output, not the database.
+- **Reusing the same address** for more than one author in a one-to-one relation.
+- **Importing `Card` directly** from `nextra/components` — use `Cards.Card` instead.
+- **Omitting `href` on `Cards.Card`** — it is a link-based component and will break without it.
+
+---
+
+## Quick Reference
+
+<Cards>
+    <Cards.Card title="Registering the Model" href="#admin-setup" />
+    <Cards.Card title="Adding __str__" href="#model-customization" />
+    <Cards.Card title="One-to-One Behavior" href="#one-to-one-behavior" />
+</Cards>
+
+---
+
+## Summary
+
+The key changes are simple:
+
+1. **Register** the model in `admin.py` using `admin.site.register(Address)`.
+2. **Define `__str__`** on the model for readable labels in admin and related views.
+3. **Use `Meta.verbose_name_plural`** to control the plural display name.
+4. **Remember** that one-to-one relations enforce uniqueness — each address can belong to only one record at a time.
+
+<Callout type="important">
+    If you want a shared address for multiple authors, use a different relationship type such as one-to-many or many-to-many instead of `OneToOneField`.
+</Callout>

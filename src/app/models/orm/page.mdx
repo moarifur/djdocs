@@ -1,0 +1,116 @@
+---
+title: Querying Data with Django ORM
+description: Learn how to fetch data from your database using Django's built-in model manager and QuerySets.
+---
+
+import { Callout, Steps } from 'nextra/components'
+
+# Querying Data with Django ORM
+
+In addition to saving data, a very common task in any Django application is **fetching data** from the database — to display it on a page, pass it to a template, or inspect it in the console.
+
+Django makes this straightforward through its **model system**, using a built-in manager called `objects`.
+
+---
+
+## How It Works
+
+When you define a model that inherits from `django.db.models.Model`, Django automatically adds a special static attribute to your class called `objects`. You don't need to define it yourself — it's provided by Django's base `Model` class.
+
+This `objects` attribute is a **model manager**, and it exposes a set of built-in methods you can use to query the database.
+
+```python
+# Saving data — uses an instance
+book = Book(title="My Book", author="Jane")
+book.save()
+
+# Fetching data — uses the class directly
+Book.objects.all()
+```
+
+<Callout type="info">
+    Notice the difference: **saving** works on an *instance* of the class, while **fetching** works on the *class itself* through the `objects` manager.
+</Callout>
+
+---
+
+## Fetching All Records
+
+To retrieve every record from a database table, use the `.all()` method on the `objects` manager:
+
+```python
+Book.objects.all()
+```
+
+This returns a **QuerySet** — a list-like object containing all the matching records from the database.
+
+### Example Output
+
+```
+<QuerySet [<Book: Book object (1)>, <Book: Book object (2)>]>
+```
+
+The output may look cryptic at first. Each item like `<Book: Book object (1)>` represents a saved record. If you've saved two books, you'll see two items in the QuerySet.
+
+---
+
+## Improving QuerySet Readability
+
+The default string representation (`Book object (1)`) isn't very informative. You can make it more readable by adding a `__str__` method to your model class:
+
+```python
+from django.db import models
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    author = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.title
+```
+
+After adding `__str__`, calling `.all()` will display the title (or whatever you return) instead of the generic object representation:
+
+```
+<QuerySet [<Book: Harry Potter 1 - The Philosopher's Stone>, <Book: Lord of the Rings>]>
+```
+
+---
+
+## To exit from Django shell, you have a few options:
+
+✅ Easiest ways to type
+
+```python
+exit()
+```
+Or:
+```python
+quit()
+```
+
+⌨️ Keyboard shortcuts
+- Press Ctrl + Z, then hit Enter (Windows)
+- Or Ctrl + D (Linux/macOS)
+
+---
+## Summary
+
+| Operation | Pattern | Example |
+|-----------|---------|---------|
+| Save a record | Instance method | `book.save()` |
+| Fetch all records | Class manager | `Book.objects.all()` |
+| Improve display | `__str__` on model | `return self.title` |
+
+<Callout type="tip">
+    `objects` is just the default manager name. Django lets you define custom managers if you need more complex querying logic.
+</Callout>
+
+---
+
+## What's Next?
+
+- Filtering records with `.filter()`
+- Getting a single record with `.get()`
+- Ordering results with `.order_by()`
+- Excluding records with `.exclude()`

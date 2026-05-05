@@ -1,0 +1,87 @@
+# Registering Models in the Django Admin
+
+## Overview
+
+Django's admin panel lets you manage your application's data through a browser-based interface. This guide covers how to register models, improve their display, and manage relational data — all from `admin.py` and `models.py`.
+
+---
+
+## Registering a Model
+
+Open `admin.py` and import the model you want to register, then call `admin.site.register()`.
+
+```python filename="admin.py"
+from django.contrib import admin
+from .models import Book, Author
+
+admin.site.register(Author)
+```
+
+Start the development server to verify:
+
+```bash
+python manage.py runserver
+```
+
+After reloading the admin panel, you should see your newly registered model (e.g., **Authors**) listed alongside any previously registered models (e.g., **Books**).
+
+> **Note:** You can optionally create a custom `ModelAdmin` class to fine-tune display settings and configuration — useful for more advanced use cases covered in the core admin section.
+
+---
+
+## Improving Object Display with `__str__`
+
+By default, Django displays model instances as `Author object (1)`, which isn't very readable. Override the `__str__` method in your model to fix this.
+
+```python filename="models.py"
+class Author(models.Model):
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+
+    def __str__(self):
+        return self.full_name()
+```
+
+**Why separate `full_name` from `__str__`?**
+
+Extracting the logic into a dedicated `full_name()` method makes it reusable — you can call it in templates, views, or anywhere else in your project without duplicating the formatting logic. `__str__` simply delegates to it.
+
+After saving, reload the admin panel and the author list will display proper names instead of generic object labels.
+
+---
+
+## Managing Relations in the Admin Panel
+
+When a model has a `ForeignKey` relation (e.g., a `Book` linked to an `Author`), Django automatically renders a **dropdown field** in the change form.
+
+### Selecting an existing author
+
+Open any book record in the admin. The **Author** field will show a dropdown populated with all registered authors.
+
+### Adding a new author inline
+
+Next to the dropdown, Django provides a **"+"** button. Clicking it opens a small popup form where you can create a new author on the spot. Once saved, it is automatically selected in the dropdown.
+
+### Creating records independently
+
+You can also manage authors directly:
+
+1. Go to **Authors** in the admin sidebar.
+2. Click **Add Author**.
+3. Fill in the fields and click **Save**.
+
+Then navigate to **Books → Add Book**, select the newly created author from the dropdown, and save.
+
+---
+
+## Admin vs. Shell: When to Use Each
+
+| Approach | Best For |
+|---|---|
+| Admin panel | Day-to-day data management, content editing, quick CRUD operations |
+| Python shell / views | Programmatic data operations, automation, data not exposed to the admin |
+
+Under the hood, both approaches execute the same database queries. The admin interface is more convenient for manual management, but knowing the shell approach matters when writing views or scripts that handle data programmatically.

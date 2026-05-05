@@ -1,0 +1,186 @@
+# Using Models in Views and Templates
+
+In this guide, you'll learn how to use your Django model in views and templates — moving beyond the interactive shell to build real pages that fetch and display data from your database.
+
+## Overview
+
+By the end of this guide you will have:
+
+- A `base.html` template with block placeholders
+- An `index.html` template listing all books
+- A `book_detail.html` template for individual book pages
+- A view function that fetches data and renders a template
+- URL routing wired up through the app and project
+
+---
+
+## Setting Up the Templates Folder
+
+Inside your app folder (e.g. `book_outlet/`), create a `templates/` directory. Following Django best practices, add a **namespaced sub-folder** inside it that matches your app name:
+
+```
+book_outlet/
+└── templates/
+    └── book_outlet/
+        ├── base.html
+        ├── index.html
+        └── book_detail.html
+```
+
+> **Why the nested folder?** Django's template loader searches all registered template directories. Namespacing prevents name collisions when multiple apps share template names like `index.html`.
+
+---
+
+## Creating the Base Template
+
+`book_outlet/templates/book_outlet/base.html`
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% block title %}My Site{% endblock %}</title>
+</head>
+<body>
+  {% block content %}{% endblock %}
+</body>
+</html>
+```
+
+This template defines two blocks:
+
+| Block | Purpose |
+|-------|---------|
+| `title` | Injected into the `<title>` tag |
+| `content` | Main page body |
+
+---
+
+## Creating the Index Template
+
+`book_outlet/templates/book_outlet/index.html`
+
+```html
+{% extends "book_outlet/base.html" %}
+
+{% block title %}All Books{% endblock %}
+
+{% block content %}
+  <ul>
+    {% for book in books %}
+      <li>
+        <a href="{% url 'book-detail' book.id %}">{{ book.title }}</a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}
+```
+
+Each book is rendered as a clickable link pointing to its detail page.
+
+---
+
+## Creating the Book Detail Template
+
+`book_outlet/templates/book_outlet/book_detail.html`
+
+```html
+{% extends "book_outlet/base.html" %}
+
+{% block title %}{{ book.title }}{% endblock %}
+
+{% block content %}
+  <h1>{{ book.title }}</h1>
+  <p>Author: {{ book.author }}</p>
+  <p>Rating: {{ book.rating }}</p>
+{% endblock %}
+```
+
+---
+
+## Writing the View Functions
+
+`book_outlet/views.py`
+
+```python
+from django.shortcuts import render, get_object_or_404
+from .models import Book
+
+def index(request):
+    books = Book.objects.all()
+    return render(request, "book_outlet/index.html", {"books": books})
+
+def book_detail(request, id):
+    book = get_object_or_404(Book, pk=id)
+    return render(request, "book_outlet/book_detail.html", {"book": book})
+```
+
+The `index` view fetches all books from the database and passes them to the template via a context dictionary. The `book_detail` view retrieves a single book by its primary key, returning a 404 if it doesn't exist.
+
+---
+
+## Configuring App URLs
+
+Create `book_outlet/urls.py`:
+
+```python
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("", views.index, name="book-list"),
+    path("<int:id>/", views.book_detail, name="book-detail"),
+]
+```
+
+---
+
+## Wiring Into the Project URLs
+
+`<your_project>/urls.py`
+
+```python
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("", include("book_outlet.urls")),
+]
+```
+
+The empty string `""` means book URLs are served directly from the root domain (e.g. `localhost:8000/`). Change this to `"books/"` if you prefer a prefix.
+
+---
+
+## Running the Development Server
+
+```bash
+python manage.py runserver
+```
+
+Visit `http://localhost:8000/` to see your book list. Clicking a book takes you to its detail page at `http://localhost:8000/<id>/`.
+
+---
+
+## Common Error: Template Does Not Exist
+
+If you see a **"Template does not exist"** error, check that the path in `render()` matches the namespaced location:
+
+```python
+# ❌ Wrong
+return render(request, "index.html", context)
+
+# ✅ Correct
+return render(request, "book_outlet/index.html", context)
+```
+
+---
+
+## What's Next
+
+- Add CSS styling to your templates
+- Explore model relations (e.g. linking books to authors)
+- Use `django.core.paginator` to paginate the book list
+- Add a search view using `Book.objects.filter()`

@@ -1,0 +1,136 @@
+---
+title: Getting Started with Django Models
+description: Learn how to define Django Models to represent and store data in a database.
+---
+
+import { Callout, Steps, FileTree } from 'nextra/components'
+
+# Getting Started with Django Models
+
+Django Models are Python classes that define the structure of your database tables. Instead of writing raw SQL, you describe your data as class attributes — Django handles the rest.
+
+## Project Setup
+
+This guide assumes you've already created a Django project (e.g. `bookstore`) using `django-admin startproject`. Start by creating a new app:
+
+```bash
+python manage.py startapp book_outlet
+```
+
+<Callout type="info">
+    The app name is up to you. In this example, `book_outlet` represents the part of the project that handles books and sales.
+</Callout>
+
+You'll also need a SQLite database file. You can create one manually in your project root:
+
+```bash
+touch db.sqlite3      # For Linux/macOS
+New-Item db.sqlite3   # For Windows
+```
+
+Your project structure should look something like this:
+
+<FileTree>
+    <FileTree.Folder name="bookstore" defaultOpen>
+        <FileTree.File name="db.sqlite3" />
+        <FileTree.File name="manage.py" />
+        <FileTree.Folder name="book_outlet" defaultOpen>
+            <FileTree.File name="models.py" />
+            <FileTree.File name="views.py" />
+            <FileTree.File name="..." />
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Defining Your First Model
+
+Open `book_outlet/models.py`. This is where you define your **data entities** — blueprints for the objects your app will work with.
+
+### Creating the `Book` Model
+
+Add a class that inherits from `models.Model`:
+
+```python filename="book_outlet/models.py"
+from django.db import models
+
+class Book(models.Model):
+    title = models.CharField(max_length=50)
+    rating = models.IntegerField()
+```
+
+<Callout type="warning">
+    Your class **must** inherit from `models.Model`. This is what gives Django the information it needs to map your class to a database table.
+</Callout>
+
+---
+
+## Understanding Field Types
+
+Each attribute in your Model class corresponds to a column in the database. Django provides a rich set of built-in field types — you can find the full list in the [official Django Model field reference](https://docs.djangoproject.com/en/stable/ref/models/fields/).
+
+### `CharField` — Short to Medium Text
+
+Use `CharField` for string data like names, titles, or slugs.
+
+```python
+title = models.CharField(max_length=50)
+```
+
+<Callout type="error">
+    `CharField` **requires** the `max_length` argument. Omitting it will raise an error. Choose a value that reflects the realistic maximum length for that field.
+</Callout>
+
+Django uses this to enforce a character limit when data is inserted — any title exceeding 50 characters will be rejected.
+
+### `IntegerField` — Whole Numbers
+
+Use `IntegerField` for numeric data without decimal places, like ratings or counts.
+
+```python
+rating = models.IntegerField()
+```
+
+Unlike `CharField`, `IntegerField` has no required arguments. All its options are optional.
+
+---
+
+## What Django Creates for You
+
+When you apply this model, Django will:
+
+- Create a database table named `book_outlet_book` (app name + lowercase class name, pluralized)
+- Add a `title` column (text, max 50 characters)
+- Add a `rating` column (integer)
+- **Automatically add an `id` column** — a unique, auto-incrementing primary key
+
+<Callout>
+    You don't need to define the `id` field manually. Django adds it to every model by default. It ensures each database row has a unique identifier, even if other fields (like `title`) are not unique.
+</Callout>
+
+If you ever need to define it explicitly, you can use:
+
+```python
+id = models.AutoField(primary_key=True)
+```
+
+But in most cases, letting Django handle it is the right approach.
+
+---
+
+## Summary
+
+| Field Type     | Use Case                        | Required Args  |
+|----------------|---------------------------------|----------------|
+| `CharField`    | Short to medium text strings    | `max_length`   |
+| `IntegerField` | Whole numbers                   | None           |
+| `AutoField`    | Auto-incrementing integer (ID)  | None (implicit)|
+
+---
+
+## Next Steps
+
+At this point, your `Book` model is defined in Python — but the database table doesn't exist yet. To create it, you'll need to run Django's migration commands.
+
+Continue to: **[Creating and Running Migrations →](./migrations)**

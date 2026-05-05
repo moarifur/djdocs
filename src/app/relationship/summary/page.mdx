@@ -1,0 +1,168 @@
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Django Model Relations — Summary
+
+A complete recap of how Django handles model relationships, how to query them, and how to manage them in the admin panel.
+
+---
+
+## What We Covered
+
+Django provides three core relation types, each mapped to a special model field. Once you add these fields, Django handles the underlying SQL for you.
+
+<Tabs items={['One-to-Many', 'One-to-One', 'Many-to-Many']}>
+    <Tabs.Tab>
+        ### ForeignKey (One-to-Many)
+
+        Use `ForeignKey` when one record relates to many others — for example, a **book** that has one **author**, where that author may have written many books.
+
+        ```python
+        class Book(models.Model):
+        title = models.CharField(max_length=200)
+        author = models.ForeignKey(Author, on_delete=models.CASCADE)
+        ```
+
+        <Callout type="info">
+            The `on_delete` argument is required. `CASCADE` deletes related books when the author is deleted.
+        </Callout>
+    </Tabs.Tab>
+
+    <Tabs.Tab>
+        ### OneToOneField
+
+        Use `OneToOneField` when each record maps to exactly one other — for example, an **author** who has exactly one **address**, and that address belongs to only one author.
+
+        ```python
+        class Address(models.Model):
+        author = models.OneToOneField(Author, on_delete=models.CASCADE)
+        street = models.CharField(max_length=255)
+        ```
+    </Tabs.Tab>
+
+    <Tabs.Tab>
+        ### ManyToManyField
+
+        Use `ManyToManyField` when both sides can have multiple related records — for example, a **book** published in multiple **countries**, where each country has many published books.
+
+        ```python
+        class Book(models.Model):
+        title = models.CharField(max_length=200)
+        countries = models.ManyToManyField(Country)
+        ```
+
+        <Callout type="default">
+            Django automatically creates a junction table behind the scenes — no extra migration steps needed.
+        </Callout>
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Setting Up Relations
+
+<Steps>
+    ### Define your models
+
+    Add the appropriate relation field to your model class in `models.py`. Django infers the table structure from the field type you choose.
+
+    ### Create and apply migrations
+
+    Run the following commands after any model change:
+
+    ```bash
+    python manage.py makemigrations
+    python manage.py migrate
+    ```
+
+    ### Query related data in code
+
+    Access related objects using Django's ORM in the Python shell or your views:
+
+    ```python
+    # Access related books from an author (reverse relation)
+    author = Author.objects.get(id=1)
+    author.book_set.all()
+
+    # Access the author from a book (forward relation)
+    book = Book.objects.get(id=1)
+    book.author
+    ```
+
+    ### Manage via the admin panel
+
+    Register your models in `admin.py` to view and edit relations through Django's built-in interface.
+
+    ```python
+    from django.contrib import admin
+    from .models import Author, Book, Address
+
+    admin.site.register(Author)
+    admin.site.register(Book)
+    admin.site.register(Address)
+    ```
+</Steps>
+
+---
+
+## Typical Project Structure
+
+<FileTree>
+    <FileTree.Folder name="myproject" defaultOpen>
+        <FileTree.Folder name="blog" defaultOpen>
+            <FileTree.File name="models.py" />
+            <FileTree.File name="admin.py" />
+            <FileTree.File name="views.py" />
+            <FileTree.Folder name="migrations">
+                <FileTree.File name="0001_initial.py" />
+                <FileTree.File name="0002_add_author_address.py" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.File name="manage.py" />
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Admin Panel Tips
+
+<Callout type="warning">
+    By default, related objects show up as plain dropdowns in the admin. You can customize this behavior using `list_display`, `list_filter`, `raw_id_fields`, and inline classes.
+</Callout>
+
+### Using Inlines
+
+To display related records directly within a parent model's admin page, use `TabularInline` or `StackedInline`:
+
+```python
+class BookInline(admin.TabularInline):
+    model = Book
+    extra = 1
+
+@admin.register(Author)
+class AuthorAdmin(admin.ModelAdmin):
+    inlines = [BookInline]
+```
+
+---
+
+## Quick Reference
+
+| Relation Type | Field | Use Case |
+|---|---|---|
+| One-to-Many | `ForeignKey` | Book → Author |
+| One-to-One | `OneToOneField` | Author → Address |
+| Many-to-Many | `ManyToManyField` | Book ↔ Country |
+
+---
+
+## Going Deeper
+
+<Callout type="info" emoji="📚">
+    This section covers the essentials you'll use most often. For advanced options — like `related_name`, `through` models for many-to-many, or `select_related` / `prefetch_related` for query optimization — refer to the [official Django documentation](https://docs.djangoproject.com/en/stable/topics/db/models/).
+</Callout>
+
+---
+
+## What's Next
+
+Now that you understand relations in theory and in the shell, the next step is applying them to the **blog project** — adding real database data and connecting models with proper relationships.

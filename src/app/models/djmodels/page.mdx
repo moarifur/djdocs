@@ -1,0 +1,42 @@
+# Models = Map to database tables
+
+Django's **models** system lets you work with your database entirely in Python — no SQL required. You define your data as Python classes, and Django handles the rest under the hood.
+
+import { Callout } from 'nextra/components'
+
+## What Are Models?
+
+Instead of writing raw SQL queries, Django lets you define **data models** — Python classes that represent your database tables. Django then translates your Python code into the appropriate SQL queries automatically.
+
+<Callout type="info">
+    You don't need to learn SQL to work with Django's database layer. Models abstract away low-level queries so you can focus on your data and business logic.
+</Callout>
+
+### How It Works
+
+1. **Define** a model class in Python
+2. **Use** that class (or objects based on it) to perform common database operations
+3. **Django generates** the SQL queries for you behind the scenes
+
+```python
+# Django handles this SQL for you — you just write Python
+# SELECT * FROM myapp_post WHERE id = 1;
+post = Post.objects.get(id=1)
+```
+
+## Why Use Models?
+
+| Without Models | With Models |
+|----------------|-------------|
+| Write raw SQL queries | Write Python classes |
+| Learn SQL syntax | Use familiar Python syntax |
+| Manage DB connections manually | Django handles everything |
+| Risk of SQL injection | Built-in query safety |
+
+<Callout type="tip">
+    Models let you focus entirely on your application's data and business logic — not on the database layer.
+</Callout>
+
+## Next Steps
+
+Once you understand the concept, the best way to learn models is by writing them. Head to the next section to create and use your first Django model in code.

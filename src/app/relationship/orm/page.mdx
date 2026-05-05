@@ -1,0 +1,126 @@
+# Working with Related Models in Django
+
+This guide covers how to create, save, and query related models using Django's ORM in Python code — going beyond the admin interface to understand what's happening under the hood.
+
+---
+
+## Why Learn the Python ORM Directly?
+
+The Django admin interface handles model relationships automatically, but as you write views and more complex logic, you'll need to work with related models in Python code directly. Understanding this gives you full control over how models interact.
+
+---
+
+## Setup: Importing Models
+
+Open the Django interactive shell and import the models you need:
+
+```python
+from book_outlet.models import Book, Author
+```
+
+---
+
+## Creating and Saving an Author
+
+Instantiate an `Author` object by passing field values as keyword arguments. This creates the object **in memory only** — it is not saved to the database yet.
+
+```python
+jk_rowling = Author(first_name="J K", last_name="Rowling")
+```
+
+To persist it to the database, call `.save()`:
+
+```python
+jk_rowling.save()
+```
+
+### Verifying the Save
+
+Confirm the author was saved by querying all author objects:
+
+```python
+Author.objects.all()
+# Returns: <QuerySet [<Author object>]>
+```
+
+Access the first object by index to inspect its fields:
+
+```python
+Author.objects.all()[0].first_name
+# Returns: 'J K'
+```
+
+---
+
+## Creating a Book and Assigning an Author
+
+When creating a `Book`, pass all required fields as keyword arguments — including `slug`, since we're not going through the admin page which would auto-populate it.
+
+```python
+hp1 = Book(
+    title="Harry Potter 1",
+    rating=5,
+    is_bestselling=True,
+    slug="harry-potter-1",
+    author=jk_rowling   # Assign the Author object directly
+)
+hp1.save()
+```
+
+> **Note:** You don't need to look up J.K. Rowling's database ID manually. Django accepts the Python object and automatically extracts and stores the correct foreign key ID behind the scenes.
+
+### Verifying the Book
+
+```python
+Book.objects.all()
+# Returns: <QuerySet [<Book: Harry Potter 1>]>
+```
+
+---
+
+## Querying Across Related Models
+
+Once the relationship is set up, you can traverse it naturally in Python.
+
+### Fetching a Book
+
+```python
+harry_potter = Book.objects.get(title="Harry Potter 1")
+```
+
+### Accessing the Related Author
+
+Accessing the `author` field on a `Book` object automatically triggers a query on the `Author` table and returns the full `Author` object:
+
+```python
+harry_potter.author
+# Returns: <Author: J K Rowling>
+
+harry_potter.author.first_name
+# Returns: 'J K'
+
+harry_potter.author.last_name
+# Returns: 'Rowling'
+```
+
+> **Under the hood:** The Author object is stored in a separate `authors` table, not embedded in the `books` table. Django stores only the foreign key ID in the book record, but when you access `.author`, it transparently queries the `authors` table and returns the full object.
+
+---
+
+## Key Concepts Summary
+
+| Concept | Details |
+|--------|---------|
+| Creating an object | `Model(field=value)` — in-memory only |
+| Saving to database | Call `.save()` on the object |
+| Assigning a relation | Pass the Python object directly (e.g., `author=jk_rowling`) |
+| Django's role | Extracts the foreign key ID and stores it — you don't manage IDs manually |
+| Cross-model querying | Access related fields with dot notation (e.g., `book.author.first_name`) |
+
+---
+
+## Next Steps
+
+- Register your models in `admin.py` to manage them via the admin dashboard
+- Explore reverse relations (e.g., querying all books by an author)
+- Use `filter()` and `exclude()` for more complex queries across related models

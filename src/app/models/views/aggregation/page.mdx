@@ -1,0 +1,188 @@
+# Aggregation & Ordering in Django
+
+Django provides powerful built-in methods to **aggregate** and **sort** query results directly at the database level — no manual Python-side processing needed.
+
+---
+
+## Aggregation Methods
+
+Aggregation lets you compute summary statistics (count, average, max, min) across a queryset.
+
+### Count
+
+To get the total number of records, call `.count()` directly on a queryset:
+
+```python
+# views.py
+from .models import Book
+
+def index(request):
+    books = Book.objects.all()
+    total_books = books.count()
+
+    context = {
+        "books": books,
+        "total_books": total_books,
+    }
+    return render(request, "index.html", context)
+```
+
+> **Performance tip:** Reuse the existing queryset (`books.count()`) instead of running `Book.objects.all()` again. Running a second query hits the database twice unnecessarily.
+
+---
+
+### Aggregate (Avg, Max, Min)
+
+For more advanced aggregations like average, maximum, or minimum, use the `.aggregate()` method combined with Django's aggregation classes from `django.db.models`.
+
+**Import the classes you need:**
+
+```python
+from django.db.models import Avg, Max, Min
+```
+
+**Compute an average:**
+
+```python
+average_rating = books.aggregate(Avg("rating"))
+```
+
+`.aggregate()` returns a **dictionary**. The key follows the pattern `<field>__<function>`:
+
+```python
+# Example output
+{"rating__avg": 4.2}
+```
+
+To use the value in your view:
+
+```python
+def index(request):
+    books = Book.objects.all()
+    total_books = books.count()
+    average_rating = books.aggregate(Avg("rating"))
+
+    context = {
+        "books": books,
+        "total_books": total_books,
+        "average_rating": average_rating,
+    }
+    return render(request, "index.html", context)
+```
+
+---
+
+### Why `.aggregate()` Returns a Dictionary
+
+You can pass **multiple aggregation functions** in a single `.aggregate()` call. Django groups the results by key so you can access each one individually:
+
+```python
+stats = books.aggregate(Avg("rating"), Min("rating"), Max("rating"))
+# Returns: {"rating__avg": 4.2, "rating__min": 1.0, "rating__max": 5.0}
+```
+
+---
+
+### Displaying Aggregated Data in Templates
+
+In your template, access the dictionary key using dot notation:
+
+```html
+<!-- index.html -->
+<ul>
+  {% for book in books %}
+    <li>{{ book.title }}</li>
+  {% endfor %}
+</ul>
+
+<hr />
+<p>Total Number of Books: {{ total_books }}</p>
+<p>Average Rating: {{ average_rating.rating__avg }}</p>
+```
+
+---
+
+## Ordering Querysets
+
+Use `.order_by()` to sort query results. Django performs the ordering at the **database level**, so Python never has to sort anything manually.
+
+### Ascending Order (Default)
+
+```python
+books = Book.objects.all().order_by("title")
+```
+
+### Descending Order
+
+Prefix the field name with `-` to reverse the sort direction:
+
+```python
+books = Book.objects.all().order_by("-title")
+```
+
+### Order by Multiple Fields
+
+Pass additional field names as arguments:
+
+```python
+books = Book.objects.all().order_by("-rating", "title")
+# Orders by rating descending, then by title ascending
+```
+
+### Works with `.filter()` Too
+
+`.order_by()` can be chained onto any queryset, not just `.all()`:
+
+```python
+top_rated = Book.objects.filter(rating__gte=4).order_by("-rating")
+```
+
+---
+
+## Quick Reference
+
+| Goal | Code |
+|---|---|
+| Count records | `queryset.count()` |
+| Average a field | `queryset.aggregate(Avg("field"))` |
+| Max of a field | `queryset.aggregate(Max("field"))` |
+| Min of a field | `queryset.aggregate(Min("field"))` |
+| Sort ascending | `queryset.order_by("field")` |
+| Sort descending | `queryset.order_by("-field")` |
+| Multiple sort keys | `queryset.order_by("-rating", "title")` |
+
+---
+
+## Full Example
+
+```python
+# views.py
+from django.shortcuts import render
+from django.db.models import Avg
+from .models import Book
+
+def index(request):
+    books = Book.objects.all().order_by("-rating")
+    total_books = books.count()
+    average_rating = books.aggregate(Avg("rating"))
+
+    context = {
+        "books": books,
+        "total_books": total_books,
+        "average_rating": average_rating,
+    }
+    return render(request, "index.html", context)
+```
+
+```html
+<!-- templates/index.html -->
+<ul>
+  {% for book in books %}
+    <li>{{ book.title }} — {{ book.rating }}</li>
+  {% endfor %}
+</ul>
+
+<hr />
+<p>Total Books: {{ total_books }}</p>
+<p>Average Rating: {{ average_rating.rating__avg }}</p>
+```

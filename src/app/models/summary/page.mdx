@@ -1,0 +1,167 @@
+# Section Summary
+
+Django makes it straightforward to work with data and SQL databases through its built-in **model system** — no raw SQL required.
+
+---
+
+## Defining a Model
+
+A Django model is a Python class that extends the built-in `Model` base class. You define your data's fields (attributes), set value types, and configure constraints directly in the class.
+
+```python
+from django.db import models
+from django.urls import reverse
+from django.utils.text import slugify
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    rating = models.IntegerField()
+    slug  = models.SlugField(unique=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        # Auto-generate slug on every save
+        if not self.slug:
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+
+    def get_absolute_url(self):
+        return reverse("book-detail", args=[self.slug])
+```
+
+> **Tip:** `get_absolute_url` is accessed **without parentheses** in templates — Python calls it automatically as a property.
+>
+> ```django
+> <a href="{{ book.get_absolute_url }}">{{ book.title }}</a>
+> ```
+
+---
+
+## Running Migrations
+
+Once your model is defined, Django handles creating and updating the database tables for you.
+
+```bash
+# 1. Generate a migration file
+python manage.py makemigrations
+
+# 2. Apply it to the database
+python manage.py migrate
+```
+
+Django reads your model class and creates (or alters) the corresponding SQL table automatically.
+
+---
+
+## Querying Data
+
+After the tables are set up, you interact with them through Django's ORM — no SQL needed.
+
+### Get all records
+
+```python
+books = Book.objects.all()
+```
+
+### Filter by a condition
+
+```python
+top_books = Book.objects.filter(rating__gte=4)
+```
+
+### Get a single record
+
+```python
+# Raises Book.DoesNotExist if not found
+book = Book.objects.get(slug="the-great-gatsby")
+```
+
+### Get a single record — or return 404
+
+```python
+from django.shortcuts import get_object_or_404
+
+book = get_object_or_404(Book, slug=slug)
+```
+
+### Order results
+
+```python
+books = Book.objects.all().order_by("title")
+books = Book.objects.all().order_by("-rating")  # descending
+```
+
+### Count & aggregate
+
+```python
+from django.db.models import Avg
+
+total = Book.objects.count()
+avg_rating = Book.objects.aggregate(Avg("rating"))
+```
+
+---
+
+## Creating, Updating & Deleting
+
+```python
+# Create
+book = Book(title="Dune", rating=5)
+book.save()
+
+# Update
+book.rating = 4
+book.save()
+
+# Delete
+book.delete()
+```
+
+---
+
+## Using Data in Views
+
+```python
+# views.py
+from django.shortcuts import render, get_object_or_404
+from .models import Book
+
+def book_list(request):
+    books = Book.objects.all().order_by("title")
+    return render(request, "books/list.html", {"books": books})
+
+def book_detail(request, slug):
+    book = get_object_or_404(Book, slug=slug)
+    return render(request, "books/detail.html", {"book": book})
+```
+
+---
+
+## Rendering Data in Templates
+
+```django
+{# List all books #}
+{% for book in books %}
+  <li>
+    <a href="{{ book.get_absolute_url }}">{{ book.title }}</a>
+    — Rating: {{ book.rating }}
+  </li>
+{% endfor %}
+```
+
+---
+
+## Identifiers: ID vs Slug
+
+| Identifier | Auto-generated | SEO-friendly | Example |
+|---|---|---|---|
+| `id` | ✅ Yes (auto-increment) | ❌ No | `/books/42/` |
+| `slug` | ❌ Manual / via `save()` | ✅ Yes | `/books/the-great-gatsby/` |
+
+You can use **any unique field** to look up a single record. Slugs are preferred for public-facing URLs.
+
+---
+
+## What's Next
+
+- **Relations** — Foreign keys, many-to-many, and one-to-one relationships (covered later in the course).
+- **Django Admin** — A built-in UI for managing your data without using the shell, coming up in the next section.

@@ -1,0 +1,135 @@
+# One-to-One Relationships in Django
+
+Django supports three types of model relationships. This guide covers **one-to-one relationships** — where each record in Model A corresponds to exactly one record in Model B, and vice versa.
+
+---
+
+## When to Use a One-to-One Relationship
+
+A one-to-one relationship is appropriate when:
+
+- Each instance of Model A has exactly **one** corresponding instance of Model B
+- That instance of Model B belongs to **only one** instance of Model A
+
+A classic example: an `Author` has one `Address`, and that `Address` belongs to only one `Author`.
+
+> **Note:** You can have multiple types of relationships between the same two models — as long as each relationship uses a **different field**. For example, a `Book` model could have a `ForeignKey` to `Author` (one-to-many), while `Author` could also have a `OneToOneField` pointing to a favorite book it wrote.
+
+---
+
+## Defining the Models
+
+Start by creating the model you want to relate to. In this example, we create an `Address` model:
+
+```python
+from django.db import models
+
+class Address(models.Model):
+    street = models.CharField(max_length=80)
+    postal_code = models.CharField(max_length=5)
+    city = models.CharField(max_length=50)
+```
+
+> **Tip:** Use `CharField` for postal codes even if they contain only digits — postal codes aren't numbers in a mathematical sense, and `CharField` handles leading zeros and international formats gracefully.
+
+---
+
+## Setting Up the OneToOneField
+
+Add a `OneToOneField` to whichever model feels like the natural "owner" of the relationship. In this case, it makes more semantic sense for an `Author` to *have an address* than for an `Address` to *have an author*:
+
+```python
+class Author(models.Model):
+    # ... other fields ...
+    address = models.OneToOneField(
+        Address,
+        on_delete=models.CASCADE,
+        null=True,
+    )
+```
+
+### Field Arguments
+
+| Argument | Description |
+|---|---|
+| `Address` | The model this field relates to |
+| `on_delete=models.CASCADE` | Delete the author if the related address is deleted (other options: `SET_NULL`, `PROTECT`, etc.) |
+| `null=True` | Allows the field to be empty in the database (useful when adding to an existing model with existing rows) |
+
+---
+
+## Reverse Access
+
+With `ForeignKey` (one-to-many), Django creates a reverse accessor named `<model>_set` on the related model — because multiple records can match.
+
+With `OneToOneField`, Django creates a **singular reverse accessor** instead, since only one record can ever match:
+
+```python
+# Access the author from an address instance
+address = Address.objects.get(id=1)
+author = address.author  # Not address.author_set
+```
+
+You can customize this name with the `related_name` argument, but `author` is already the default for a `OneToOneField` on `Author`, so it's optional here.
+
+---
+
+## Running Migrations
+
+After defining your models, create and apply the migrations:
+
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+
+### Handling Existing Rows
+
+If you add a `OneToOneField` to a model that already has rows in the database, Django will prompt you to handle the missing values. The cleanest solution is to set `null=True` on the field — this lets Django fill in `NULL` for all existing records without requiring a one-off default value.
+
+```python
+address = models.OneToOneField(
+    Address,
+    on_delete=models.CASCADE,
+    null=True,   # Allows existing rows to have no address
+)
+```
+
+After adding `null=True`, re-run `makemigrations` and then `migrate`. Existing author records will have `NULL` in the `address` column until you assign one.
+
+---
+
+## Querying One-to-One Relationships
+
+```python
+from myapp.models import Author, Address
+
+# Get an author's address
+author = Author.objects.get(id=1)
+print(author.address.city)
+
+# Get the author from an address (reverse access)
+address = Address.objects.get(id=1)
+print(address.author.first_name)
+
+# Create and link an address
+new_address = Address.objects.create(
+    street="123 Main St",
+    postal_code="10001",
+    city="New York",
+)
+author.address = new_address
+author.save()
+```
+
+---
+
+## Summary
+
+| Concept | Detail |
+|---|---|
+| Field type | `models.OneToOneField` |
+| `on_delete` | Required — defines behavior when related object is deleted |
+| Reverse accessor | Singular (e.g., `address.author`), not a set |
+| Multiple relationships | Allowed between the same two models, on different fields |
+| `null=True` | Required when adding the field to a model with existing data |

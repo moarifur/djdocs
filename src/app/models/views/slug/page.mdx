@@ -1,0 +1,150 @@
+# Using Slug URLs in Django
+
+Slugs provide SEO-friendly, human-readable URLs for your Django models — replacing numeric IDs like `/books/42/` with descriptive paths like `/books/the-great-gatsby/`.
+
+---
+
+## Overview
+
+By the end of this guide, you will know how to:
+
+- Update `urls.py` to accept a slug instead of an ID
+- Update `views.py` to query by slug
+- Update `get_absolute_url()` to generate slug-based links
+- Add a database index to the slug field for better query performance
+
+---
+
+## Step 1: Update `urls.py`
+
+Replace the `<int:id>` path converter with `<slug:slug>`:
+
+```python
+# urls.py
+
+urlpatterns = [
+    # Before
+    path("books/<int:id>/", views.book_detail, name="book-detail"),
+
+    # After
+    path("books/<slug:slug>/", views.book_detail, name="book-detail"),
+]
+```
+
+> The built-in `slug` path converter matches strings containing letters, numbers, hyphens, and underscores — the standard format for URL slugs.
+
+---
+
+## Step 2: Update `views.py`
+
+Change the view function to accept a `slug` parameter and filter by it:
+
+```python
+# views.py
+
+def book_detail(request, slug):  # Accept slug instead of id
+    book = get_object_or_404(Book, slug=slug)  # Filter by slug field
+    return render(request, "books/book_detail.html", {"book": book})
+```
+
+**How the lookup works:**
+
+| Side | Value |
+|------|-------|
+| Left of `=` | The model field name (`slug`) |
+| Right of `=` | The URL parameter received (`slug`) |
+
+In this case both happen to be named `slug`, but keep the distinction in mind if your field name and parameter name ever differ.
+
+---
+
+## Step 3: Update `get_absolute_url()`
+
+Pass `self.slug` instead of `self.id` when reversing the URL:
+
+```python
+# models.py
+
+from django.urls import reverse
+
+class Book(models.Model):
+    slug = models.SlugField(max_length=200, null=True, default="")
+
+    def get_absolute_url(self):
+        return reverse("book-detail", args=[self.slug])  # Use slug, not self.id
+```
+
+With this change, every template that calls `book.get_absolute_url` will automatically produce slug-based links.
+
+---
+
+## Step 4: Add a Database Index (Performance)
+
+Every time a visitor loads a book's detail page, Django runs a query filtered by `slug`. For frequently-queried fields like this, adding a **database index** speeds up lookups significantly.
+
+```python
+# models.py
+
+class Book(models.Model):
+    slug = models.SlugField(
+        max_length=200,
+        null=True,
+        default="",
+        db_index=True,  # Add this
+    )
+```
+
+### How database indexes work
+
+A database index is a data structure that lets the database find rows faster — both SQL and NoSQL databases support this concept. When you index a column, the database stores its values in a way that is optimized for search.
+
+**Trade-off to be aware of:**
+
+| Action | Effect of indexing |
+|--------|--------------------|
+| Reading / querying | ✅ Faster |
+| Writing / inserting | 🔻 Slightly slower (index must be updated) |
+
+> **Rule of thumb:** Index fields you query frequently. Don't index everything — write performance degrades if too many fields are indexed.
+
+The primary key (`id`) is indexed automatically by Django. All other fields are not indexed by default.
+
+### When to use `db_index=True`
+
+Use it when a field is queried on almost every request, like `slug` in this example — it's looked up each time a user visits any single book page.
+
+---
+
+## Optional: Using Slug as the Primary Key
+
+If you know from the start that you won't need a separate numeric `id`, you can make the slug the primary key:
+
+```python
+slug = models.SlugField(
+    max_length=200,
+    primary_key=True,  # Replaces the auto-generated id field
+)
+```
+
+> ⚠️ Only do this for new models. Changing an existing model's primary key requires a data migration and can break existing foreign-key relationships.
+
+---
+
+## Summary
+
+| File | Change |
+|------|--------|
+| `urls.py` | Use `<slug:slug>` path converter |
+| `views.py` | Accept `slug` parameter, filter with `slug=slug` |
+| `models.py` — `get_absolute_url` | Pass `self.slug` to `reverse()` |
+| `models.py` — field definition | Add `db_index=True` for performance |
+
+After saving all changes and restarting your development server, your app will serve clean, SEO-friendly URLs — and find data efficiently using the indexed slug field.
+
+---
+
+## Further Reading
+
+- [Django URL dispatchers — Path converters](https://docs.djangoproject.com/en/stable/topics/http/urls/#path-converters)
+- [Django Model field reference — SlugField](https://docs.djangoproject.com/en/stable/ref/models/fields/#slugfield)
+- [Django Database indexes](https://docs.djangoproject.com/en/stable/ref/models/options/#indexes)

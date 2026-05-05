@@ -1,0 +1,143 @@
+# Model Relations & Foreign Keys
+
+Learn how to link Django models together using `ForeignKey` fields, manage related data, and handle migrations safely.
+
+---
+
+## Creating a Separate Author Model
+
+Instead of storing author names as plain text (which risks typos and duplicate entries), create a dedicated `Author` model with its own database table.
+
+```python filename="models.py"
+from django.db import models
+
+class Author(models.Model):
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+```
+
+This gives every author a unique ID and makes it easy to map books to specific authors without ambiguity.
+
+---
+
+## Connecting Models with ForeignKey
+
+To link the `Book` model to `Author`, replace the plain `CharField` for `author` with a `ForeignKey` field:
+
+```python filename="models.py" {9}
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    author = models.ForeignKey(
+        Author,
+        on_delete=models.CASCADE,
+        null=True
+    )
+```
+
+A `ForeignKey` does not store the author's name directly. Instead, it stores a **pointer** (the author's ID) to an entry in the `Author` table. Django manages the underlying SQL relationship automatically.
+
+---
+
+## The `on_delete` Parameter
+
+When a related object is deleted, Django needs to know what to do with records that point to it. This is controlled by the required `on_delete` argument.
+
+| Option | Behavior |
+|---|---|
+| `models.CASCADE` | Deletes all related books when the author is deleted |
+| `models.PROTECT` | Prevents deletion of an author if related books exist |
+| `models.SET_NULL` | Sets the `author` field to `null` (requires `null=True`) |
+
+```python
+# Cascade: deleting an author also deletes their books
+author = models.ForeignKey(Author, on_delete=models.CASCADE)
+
+# Set null: book remains, author field becomes null
+author = models.ForeignKey(Author, on_delete=models.CASCADE, null=True)
+```
+
+> **Tip:** Use `null=True` on a `ForeignKey` if you want to allow books without an author, or to safely handle migration from a text field.
+
+---
+
+## Running Migrations
+
+After adding a new model or changing a field, always create and apply migrations:
+
+```bash
+python3 manage.py makemigrations
+python3 manage.py migrate
+```
+
+### Common Migration Warning
+
+When changing `author` from a `CharField` to a `ForeignKey`, Django will warn that the field is non-nullable without a default. This happens because:
+
+- The old column stored **text** (e.g., `"J.R.R. Tolkien"`)
+- The new column expects an **integer ID** pointing to the `Author` table
+
+**Fix:** Add `null=True` to the `ForeignKey` field before running `makemigrations` again. This allows Django to set existing rows to `null` during the migration.
+
+---
+
+## Handling Invalid Foreign Key Errors
+
+If you run `migrate` and see an error like:
+
+```
+Row in table 'bookoutlet_book' with primary key 2 has an invalid foreign key.
+```
+
+This means existing rows contain old text values (e.g., `"JRR Tolkien"`) in the field that is now expected to hold integer IDs. Those values are not valid pointers to the `Author` table.
+
+### Resolution
+
+Clear the existing data from the Django shell before migrating:
+
+```bash
+python3 manage.py shell
+```
+
+```python
+from bookoutlet.models import Book
+
+Book.objects.all().delete()
+exit()
+```
+
+Then re-run the migration:
+
+```bash
+python3 manage.py migrate
+```
+
+> **Best practice:** Design your models upfront before adding data. Changing field types on a table with existing data requires either clearing that data or writing a custom data migration.
+
+---
+
+## Full Example
+
+```python filename="models.py"
+from django.db import models
+
+
+class Author(models.Model):
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    author = models.ForeignKey(
+        Author,
+        on_delete=models.CASCADE,
+        null=True
+    )
+```
+
+```bash
+python3 manage.py makemigrations
+python3 manage.py migrate
+```
+
+With this setup, each `Book` record holds a reference to an `Author` entry, and Django handles all the SQL join logic behind the scenes.

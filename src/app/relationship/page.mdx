@@ -1,0 +1,196 @@
+---
+title: Data Relationships in Django
+description: Learn what data relationships are, why they matter, and how to set them up using Django models.
+---
+
+import { Callout, Steps } from 'nextra/components'
+
+# Data Relationships in Django
+
+## Introduction
+
+Up to this point, most projects start with a single model — for example, a `Book` model. While that's a perfectly valid starting point, real-world websites and web applications almost always involve **multiple data entities** that are connected to one another.
+
+This guide introduces the concept of **data relationships** in Django: what they are, why they're important, and how to manage them using Django models.
+
+---
+
+## Why Multiple Models?
+
+Consider a `Book` model that stores an author's name as a plain text field. This approach has a few problems:
+
+- The same author might be entered differently in different records (e.g., `"Max"` vs. `"Maximilian"`), causing data inconsistency.
+- Author information has to be re-entered every time a new book is added.
+- There's no single source of truth for an author's identity.
+
+The solution is to extract the author into a **separate model** — an `Author` model — and then *reference* it from the `Book` model. This way:
+
+- Author data is stored once and reused across many books.
+- You point to an existing author record rather than retyping their information.
+- Consistency is enforced at the data level.
+
+---
+
+## What Are Data Relationships?
+
+<Callout type="info">
+    Data relationships define how different data entities (models) in your application are connected to each other.
+</Callout>
+
+In a real application, you don't just have multiple models — you also have **relations** between those models. For example:
+
+- A `Book` **belongs to** an `Author`
+- An `Author` **has many** `Books`
+- A `Book` can have **many** `Tags`, and a `Tag` can belong to **many** `Books`
+
+These connections are what make your data meaningful and your application functional.
+
+---
+
+## Types of Data Relationships
+
+Django supports three primary types of model relationships:
+
+### One-to-Many (ForeignKey)
+
+The most common relationship. One record in Model A relates to **many** records in Model B.
+
+**Example:** One `Author` → Many `Books`
+
+```python
+from django.db import models
+
+class Author(models.Model):
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    author = models.ForeignKey(Author, on_delete=models.CASCADE, related_name='books')
+
+    def __str__(self):
+        return self.title
+```
+
+### Many-to-Many (ManyToManyField)
+
+A record in Model A can relate to **many** records in Model B, and vice versa.
+
+**Example:** `Books` ↔ `Tags`
+
+```python
+class Tag(models.Model):
+    label = models.CharField(max_length=50)
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    tags = models.ManyToManyField(Tag, related_name='books', blank=True)
+```
+
+### One-to-One (OneToOneField)
+
+Each record in Model A relates to **exactly one** record in Model B.
+
+**Example:** A `UserProfile` linked to Django's built-in `User`
+
+```python
+from django.contrib.auth.models import User
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    bio = models.TextField(blank=True)
+```
+
+---
+
+## Setting Up Relationships: Step-by-Step
+
+<Steps>
+
+    ### Define your models
+
+    Create both models in `models.py`. Start with the model that will be *referenced* (e.g., `Author`) before the one that references it (e.g., `Book`).
+
+    ```python
+    # models.py
+
+    from django.db import models
+
+    class Author(models.Model):
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+
+    def __str__(self):
+    return f"{self.first_name} {self.last_name}"
+
+    class Book(models.Model):
+    title = models.CharField(max_length=200)
+    author = models.ForeignKey(
+    Author,
+    on_delete=models.CASCADE,
+    related_name='books'
+    )
+
+    def __str__(self):
+    return self.title
+    ```
+
+    ### Create and apply migrations
+
+    ```bash
+    python manage.py makemigrations
+    python manage.py migrate
+    ```
+
+    ### Use the relationship in queries
+
+    ```python
+    # Get all books by a specific author
+    author = Author.objects.get(id=1)
+    books = author.books.all()
+
+    # Get the author of a specific book
+    book = Book.objects.get(id=1)
+    print(book.author.first_name)
+    ```
+
+</Steps>
+
+---
+
+## Key Concepts Summary
+
+| Concept | Description |
+|---|---|
+| `ForeignKey` | One-to-many relationship between two models |
+| `ManyToManyField` | Many-to-many relationship between two models |
+| `OneToOneField` | Strict one-to-one relationship between two models |
+| `on_delete` | Defines what happens to related records when a referenced record is deleted |
+| `related_name` | The name used to access the reverse relationship |
+
+---
+
+## `on_delete` Options
+
+When using `ForeignKey` or `OneToOneField`, you must specify what happens when the referenced object is deleted:
+
+| Option | Behavior |
+|---|---|
+| `CASCADE` | Deletes all related objects |
+| `SET_NULL` | Sets the field to `NULL` (requires `null=True`) |
+| `SET_DEFAULT` | Sets the field to its default value |
+| `PROTECT` | Prevents deletion if related objects exist |
+| `DO_NOTHING` | Takes no action (use with caution) |
+
+---
+
+## What's Next?
+
+Now that you understand the fundamentals of data relationships, you can explore:
+
+- Querying across related models using Django ORM
+- Using `select_related()` and `prefetch_related()` for performance optimization
+- Managing relationships through Django's admin interface
+- Handling relationships in Django forms and views

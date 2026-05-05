@@ -1,0 +1,160 @@
+---
+title: Databases & SQL in Django
+description: Learn how Django handles SQL databases, when to use SQLite vs MySQL, and how Django models abstract away raw SQL.
+---
+
+import { Callout } from 'nextra/components'
+
+# Databases & SQL in Django
+
+Django uses **SQL (Structured Query Language)** to store and retrieve data. This page explains how to get your database set up, what SQL looks like under the hood, and how Django's **models** feature saves you from writing raw SQL yourself.
+
+---
+
+## Setting Up Your Database
+
+### SQLite (Default)
+
+When you create a new Django project, a file called `db.sqlite3` is automatically generated in your project root. This file *is* your database — no extra installation required.
+
+```
+my_blog_project/
+├── db.sqlite3        ← your SQLite database
+├── manage.py
+└── ...
+```
+
+<Callout type="info">
+    SQLite works out of the box on any system. You don't need to install a database server, configure ports, or manage credentials to get started.
+</Callout>
+
+If the file wasn't created automatically, just create it manually:
+
+```bash
+touch db.sqlite3
+```
+
+---
+
+### SQLite vs. MySQL
+
+| Feature | SQLite | MySQL |
+|---|---|---|
+| Installation | None — single file | Requires server setup |
+| Best for | Development, low-traffic sites | High-traffic, production apps |
+| Performance | Good for most use cases | Better under heavy query load |
+| Setup complexity | Zero | Moderate |
+
+<Callout type="warning">
+    If your site grows to handle significant traffic or complex queries, you may need to migrate to a dedicated database server like **MySQL** or **PostgreSQL** for better performance.
+</Callout>
+
+SQLite works well for development **and** many production websites. Visit the [SQLite "When To Use" guide](https://www.sqlite.org/whentouse.html) to help you decide when it's time to switch.
+
+---
+
+## SQL Basics (What Django Does For You)
+
+You don't need to write SQL when using Django — but understanding what's happening behind the scenes is useful.
+
+### Creating a Table
+
+When your app starts, a table needs to be created to define what data you'll store and how it's structured:
+
+```sql
+CREATE TABLE books (
+  id     INTEGER PRIMARY KEY AUTOINCREMENT,
+  title  TEXT    NOT NULL,
+  rating INTEGER NOT NULL
+);
+```
+
+This creates a `books` table with three columns:
+
+- **`id`** — An auto-incrementing integer, automatically assigned to each new row. You never set this manually.
+- **`title`** — A text field for the book's name.
+- **`rating`** — An integer field for the rating.
+
+<Callout>
+    SQL tables require you to define a **schema** upfront — the column names and the type of data each column accepts. This is set once when you initialize the database.
+</Callout>
+
+---
+
+### Inserting Data
+
+To add a new book record into the table:
+
+```sql
+INSERT INTO books (title, rating)
+VALUES ("Lord of the Rings", 5);
+```
+
+Notice that `id` is omitted — because it's `AUTOINCREMENT`, the database fills it in automatically.
+
+---
+
+### Querying Data
+
+To retrieve books with a rating greater than 5:
+
+```sql
+SELECT * FROM books
+WHERE rating > 5;
+```
+
+- `SELECT *` — fetch all columns
+- `FROM books` — from the `books` table
+- `WHERE rating > 5` — only rows matching this condition
+
+---
+
+## Django Models: No Raw SQL Required
+
+Writing raw SQL by hand is verbose and error-prone. Django solves this with **models** — a Python-based way to define your data structure and interact with the database without touching SQL directly.
+
+<Callout type="info">
+    Django's ORM (Object-Relational Mapper) translates your Python code into SQL queries automatically. You describe *what* you want — Django figures out *how* to get it.
+</Callout>
+
+Instead of writing:
+
+```sql
+INSERT INTO books (title, rating) VALUES ("Lord of the Rings", 5);
+```
+
+You write Python:
+
+```python
+book = Book(title="Lord of the Rings", rating=5)
+book.save()
+```
+
+And instead of:
+
+```sql
+SELECT * FROM books WHERE rating > 5;
+```
+
+You write:
+
+```python
+Book.objects.filter(rating__gt=5)
+```
+
+Django generates and executes the SQL behind the scenes, keeping your code clean and Pythonic.
+
+---
+
+## Summary
+
+- Django projects come with **SQLite pre-configured** — no setup needed for development.
+- SQLite stores everything in a **single file** (`db.sqlite3`) and suits most projects well.
+- For high-traffic production apps, consider switching to **MySQL** or **PostgreSQL**.
+- You'll rarely write raw SQL in Django — **models** handle all data operations using clean Python syntax.
+
+---
+
+## What's Next
+
+Now that you understand how databases work in Django, the next step is learning how to **define models** in your app and use Django's migration system to create and update your database schema.
