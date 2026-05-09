@@ -65,8 +65,8 @@ author = models.ForeignKey(Author, on_delete=models.CASCADE, null=True)
 After adding a new model or changing a field, always create and apply migrations:
 
 ```bash
-python3 manage.py makemigrations
-python3 manage.py migrate
+python manage.py makemigrations
+python manage.py migrate
 ```
 
 ### Common Migration Warning
@@ -95,7 +95,7 @@ This means existing rows contain old text values (e.g., `"JRR Tolkien"`) in the 
 Clear the existing data from the Django shell before migrating:
 
 ```bash
-python3 manage.py shell
+python manage.py shell
 ```
 
 ```python
@@ -108,7 +108,7 @@ exit()
 Then re-run the migration:
 
 ```bash
-python3 manage.py migrate
+python manage.py migrate
 ```
 
 > **Best practice:** Design your models upfront before adding data. Changing field types on a table with existing data requires either clearing that data or writing a custom data migration.
@@ -136,8 +136,8 @@ class Book(models.Model):
 ```
 
 ```bash
-python3 manage.py makemigrations
-python3 manage.py migrate
+python manage.py makemigrations
+python manage.py migrate
 ```
 
 With this setup, each `Book` record holds a reference to an `Author` entry, and Django handles all the SQL join logic behind the scenes.
