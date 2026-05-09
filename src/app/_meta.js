@@ -1,22 +1,46 @@
 export default {
     foundations: {
-        title: 'Django Foundations',
+        title: 'Foundations',
         type: 'page'
     },
     template: {
-        title: 'Templates in Action',
+        title: 'Templates',
         type: 'page'
     },
     models: {
-        title: 'Django Models',
+        title: 'Models',
         type: 'page'
     },
     admin: {
-        title: 'Django Admin',
+        title: 'Admin',
         type: 'page'
     },
     relationship: {
-        title: 'Data Relationships',
+        title: 'Relationships',
+        type: 'page'
+    },
+    form: {
+        title: 'Forms',
+        type: 'page'
+    },
+    class: {
+        title: 'Class',
+        type: 'page'
+    },
+    file: {
+        title: 'File',
+        type: 'page'
+    },
+    session: {
+        title: 'Session',
+        type: 'page'
+    },
+    deploy: {
+        title: 'Deployment',
+        type: 'page'
+    },
+    keyf: {
+        title: 'Key Features',
         type: 'page'
     },
     workflows: {

@@ -1,0 +1,470 @@
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Django Class-Based Views
+
+A deep-dive into Django's built-in class-based view hierarchy — from the generic `View` all the way to `CreateView` — so you can write less boilerplate and focus on your app logic.
+
+---
+
+## Overview
+
+In the previous section we used the plain `View` base class and wrote explicit `get()` and `post()` methods. Django ships with a whole family of more specialised view classes that handle common patterns for you automatically:
+
+| View class | Purpose |
+|---|---|
+| `View` | Generic base — define any HTTP method by name |
+| `TemplateView` | Render a static (or lightly dynamic) template on GET |
+| `ListView` | Fetch *all* rows for a model and pass them to a template |
+| `DetailView` | Fetch a *single* row by primary key and pass it to a template |
+| `FormView` | Render, validate, and re-display a form; redirect on success |
+| `CreateView` | Everything `FormView` does, **plus** auto-save to the database |
+| `UpdateView` | Pre-populate a form from an existing row and save changes |
+| `DeleteView` | Confirm and delete a single row |
+
+<Callout type="info">
+    You don't have to use any of these. Plain function-based views and the generic `View` class always work. These specialised classes exist purely to save code — use whichever feels clearest to you.
+</Callout>
+
+---
+
+## Project Structure
+
+The examples in this guide build on a `feedback` project with a `reviews` app.
+
+<FileTree>
+    <FileTree.Folder name="feedback/" defaultOpen>
+        <FileTree.File name="settings.py" />
+        <FileTree.File name="urls.py" />
+        <FileTree.Folder name="reviews/" defaultOpen>
+            <FileTree.File name="models.py" />
+            <FileTree.File name="forms.py" />
+            <FileTree.File name="views.py" />
+            <FileTree.File name="urls.py" />
+            <FileTree.Folder name="templates/">
+                <FileTree.Folder name="reviews/">
+                    <FileTree.File name="base.html" />
+                    <FileTree.File name="review.html" />
+                    <FileTree.File name="thank_you.html" />
+                    <FileTree.File name="review_list.html" />
+                    <FileTree.File name="single_review.html" />
+                </FileTree.Folder>
+            </FileTree.Folder>
+            <FileTree.Folder name="static/">
+                <FileTree.Folder name="reviews/">
+                    <FileTree.File name="styles.css" />
+                </FileTree.Folder>
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+### Base template
+
+Before adding more views, set up a shared base template that all other templates can extend:
+
+```django
+{# reviews/templates/reviews/base.html #}
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{% block title %}Reviews{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'reviews/styles.css' %}">
+</head>
+<body>
+  {% block content %}{% endblock %}
+</body>
+</html>
+```
+
+Each child template then just fills in its blocks:
+
+```django
+{# review.html #}
+{% extends "reviews/base.html" %}
+
+{% block title %}Your Review{% endblock %}
+
+{% block content %}
+  {# form goes here #}
+{% endblock %}
+```
+
+---
+
+## TemplateView
+
+Use `TemplateView` whenever a view's only job is to render a template — no database queries needed (or only a small amount of extra context).
+
+### Minimal usage
+
+```python
+# reviews/views.py
+from django.views.generic.base import TemplateView
+
+class ThankYouView(TemplateView):
+    template_name = 'reviews/thank_you.html'
+```
+
+That's it. Django automatically handles GET requests and renders the template. Register it in `urls.py` with `.as_view()`:
+
+```python
+# reviews/urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('thank-you', views.ThankYouView.as_view(), name='thank-you'),
+]
+```
+
+<Callout>
+    Always call `.as_view()` when registering any class-based view in `urlpatterns`. Without it, Django cannot route requests to the correct handler methods.
+</Callout>
+
+### Passing context data
+
+If your template needs dynamic data, override `get_context_data`:
+
+```python
+class ThankYouView(TemplateView):
+    template_name = 'reviews/thank_you.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['message'] = 'This works!'
+        return context
+```
+
+Always call `super().get_context_data(**kwargs)` first so the parent class can initialise its own context keys before you add yours.
+
+### Building a review list with TemplateView
+
+You can use `TemplateView` for a list page too — just fetch the data yourself in `get_context_data`:
+
+```python
+from .models import Review
+
+class ReviewsListView(TemplateView):
+    template_name = 'reviews/review_list.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['reviews'] = Review.objects.all()
+        return context
+```
+
+```django
+{# review_list.html #}
+{% extends "reviews/base.html" %}
+
+{% block title %}All Reviews{% endblock %}
+
+{% block content %}
+  <ul>
+    {% for review in reviews %}
+      <li>{{ review.user_name }} ({{ review.rating }})</li>
+    {% endfor %}
+  </ul>
+{% endblock %}
+```
+
+### Detail page with TemplateView
+
+For a single-item page, accept the dynamic URL segment through `kwargs`:
+
+```python
+# reviews/urls.py
+path('reviews/<int:id>', views.SingleReviewView.as_view()),
+```
+
+```python
+class SingleReviewView(TemplateView):
+    template_name = 'reviews/single_review.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        review_id = kwargs['id']
+        context['review'] = Review.objects.get(pk=review_id)
+        return context
+```
+
+```django
+{# single_review.html #}
+{% extends "reviews/base.html" %}
+
+{% block title %}Review Detail{% endblock %}
+
+{% block content %}
+  <h1>{{ review.user_name }}</h1>
+  <p>Rating: {{ review.rating }}</p>
+  <p>{{ review.review_text }}</p>
+{% endblock %}
+```
+
+---
+
+## ListView
+
+`TemplateView` with `get_context_data` for a list is fine, but Django has an even more specialised class for this exact pattern.
+
+```python
+from django.views.generic import ListView
+
+class ReviewsListView(ListView):
+    model = Review
+    template_name = 'reviews/review_list.html'
+    context_object_name = 'reviews'   # default is 'object_list'
+```
+
+Django automatically calls `Review.objects.all()` and injects the result into the template context under the key you chose. No `get_context_data` needed for the basic case.
+
+<Callout type="warning">
+    Without `context_object_name`, the list is available in your template as `object_list`, not `reviews`. Always set this property so your template stays readable.
+</Callout>
+
+### Filtering the queryset
+
+Override `get_queryset` to narrow the data — for example, only show five-star reviews:
+
+```python
+class ReviewsListView(ListView):
+    model = Review
+    template_name = 'reviews/review_list.html'
+    context_object_name = 'reviews'
+
+    def get_queryset(self):
+        base_query = super().get_queryset()
+        return base_query.filter(rating__gt=4)
+```
+
+You can chain any queryset methods here — `filter`, `order_by`, `exclude`, pagination, and so on. The full query is only executed when the template actually iterates the data.
+
+### Other useful overrides
+
+| Method | What it controls |
+|---|---|
+| `get_context_data` | Add extra template variables beyond the list |
+| `get_ordering` | Default ordering of the queryset |
+| `get_queryset` | Full control over which rows are fetched |
+| `paginate_by` | Set to an integer to enable built-in pagination |
+
+---
+
+## DetailView
+
+`DetailView` handles the single-item pattern. It expects either a `pk` or `slug` URL parameter and fetches the matching row automatically.
+
+<Steps>
+
+    ### Change the URL parameter name to `pk`
+
+    `DetailView` looks for `pk` in the URL, not `id`:
+
+    ```python
+    # reviews/urls.py
+    path('reviews/<int:pk>', views.SingleReviewView.as_view()),
+    ```
+
+    ### Inherit from DetailView
+
+    ```python
+    from django.views.generic import DetailView
+
+    class SingleReviewView(DetailView):
+    model = Review
+    template_name = 'reviews/single_review.html'
+    ```
+
+    ### Access the object in the template
+
+    Django exposes the fetched row under the model name in lowercase (`review`) **and** under the generic key `object`. Both work:
+
+    ```django
+    <h1>{{ review.user_name }}</h1>     {# model name #}
+    <h1>{{ object.user_name }}</h1>      {# generic key #}
+    ```
+
+</Steps>
+
+<Callout type="info">
+    You still get a `get_context_data` override if you need to pass extra data alongside the single object — for example a list of related items.
+</Callout>
+
+---
+
+## When to Use Which View
+
+By now there are several options on the table. Here is a quick decision guide:
+
+<Tabs items={['Render a template', 'Show a list', 'Show one item', 'Handle a form']}>
+    <Tabs.Tab>
+
+        **Use `TemplateView`** when the page has no database data, or when you need full control over what goes into context (e.g. the thank-you page after a redirect).
+
+        ```python
+        class ThankYouView(TemplateView):
+        template_name = 'reviews/thank_you.html'
+        ```
+
+        You can also just use a plain function-based view — both are fine.
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        **Use `ListView`** when you need to fetch all (or a filtered subset of) rows for a model and render them in a template. It removes the boilerplate of writing `objects.all()` in `get_context_data`.
+
+        ```python
+        class ReviewsListView(ListView):
+        model = Review
+        template_name = 'reviews/review_list.html'
+        context_object_name = 'reviews'
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        **Use `DetailView`** when you want to show a single model instance looked up by its primary key (or a slug). Rename your URL parameter to `pk`.
+
+        ```python
+        class SingleReviewView(DetailView):
+        model = Review
+        template_name = 'reviews/single_review.html'
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        **Use `FormView` or `CreateView`** (see next sections). Use the generic `View` with explicit `get` / `post` methods when you need full control over both branches. A plain function-based view is always a valid choice too.
+
+    </Tabs.Tab>
+</Tabs>
+
+<Callout>
+    All specialised views can be mixed with plain function-based views in the same project. You do not need to commit to one style everywhere.
+</Callout>
+
+---
+
+## FormView
+
+`FormView` covers the standard form lifecycle: display the form on GET, validate on POST, re-render with errors if invalid, redirect on success.
+
+```python
+from django.views.generic.edit import FormView
+from .forms import ReviewForm
+
+class ReviewView(FormView):
+    form_class    = ReviewForm
+    template_name = 'reviews/review.html'
+    success_url   = '/thank-you'
+```
+
+With just these three properties Django will:
+- Create an empty `ReviewForm` instance and inject it into the template on GET
+- Bind `request.POST` to the form and call `is_valid()` on POST
+- Re-render the template with error messages if the form is invalid
+- Redirect to `success_url` if valid
+
+<Callout type="warning">
+    Out of the box `FormView` does **not** save any data. It cannot know what you want to do — write to a file, send an email, hit an API. You must implement `form_valid` yourself.
+</Callout>
+
+### Saving data with form_valid
+
+Override `form_valid` to run your own logic when a valid form is submitted, then let the parent class handle the redirect:
+
+```python
+class ReviewView(FormView):
+    form_class    = ReviewForm
+    template_name = 'reviews/review.html'
+    success_url   = '/thank-you'
+
+    def form_valid(self, form):
+        form.save()                          # works because ReviewForm is a ModelForm
+        return super().form_valid(form)      # triggers the redirect
+```
+
+`form_valid` is only called when `is_valid()` returns `True`, so `form.cleaned_data` is always safe to use inside it.
+
+---
+
+## CreateView
+
+`CreateView` is a `FormView` that also auto-saves the data. It is the right choice when the form maps directly to a model and you always want to create a new database row on success.
+
+```python
+from django.views.generic.edit import CreateView
+from .models import Review
+from .forms import ReviewForm
+
+class ReviewView(CreateView):
+    model         = Review
+    form_class    = ReviewForm       # optional — see note below
+    template_name = 'reviews/review.html'
+    success_url   = '/thank-you'
+```
+
+<Callout>
+    If you omit `form_class`, `CreateView` infers a `ModelForm` automatically from `model`. In that case you must set a `fields` list instead:
+
+    ```python
+    class ReviewView(CreateView):
+    model         = Review
+    fields        = ['user_name', 'review_text', 'rating']
+    template_name = 'reviews/review.html'
+    success_url   = '/thank-you'
+    ```
+
+    Use `form_class` when you want to keep your custom labels, error messages, and widget overrides from a hand-crafted `ModelForm`.
+</Callout>
+
+When valid data is submitted, `CreateView` calls `form.save()` internally — you don't need `form_valid` at all.
+
+### UpdateView and DeleteView
+
+These work the same way and are worth knowing about:
+
+`UpdateView` — pre-populates the form from an existing row (identified by `pk` in the URL) and calls `form.save()` to update it on success.
+
+`DeleteView` — renders a confirmation page and deletes the row on POST. Requires a `success_url` to redirect to after deletion.
+
+Both are imported from `django.views.generic.edit` and follow the same `model` + `template_name` + `success_url` pattern.
+
+---
+
+## Registering Class-Based Views in urls.py
+
+Every class-based view must be wired up with `.as_view()`:
+
+```python
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('',              views.ReviewView.as_view(),   name='review'),
+    path('thank-you',     views.ThankYouView.as_view(), name='thank-you'),
+    path('reviews',       views.ReviewsListView.as_view(), name='review-list'),
+    path('reviews/<int:pk>', views.SingleReviewView.as_view(), name='review-detail'),
+]
+```
+
+<Callout type="error">
+    Never point directly at the class (`views.ReviewView`) without calling `.as_view()`. Django will raise a `TypeError` at runtime because it expects a callable function, not a class.
+</Callout>
+
+---
+
+## Summary
+
+<Callout>
+    **Key takeaways from this section:**
+
+    1. **`TemplateView`** — the simplest upgrade from a plain GET function view. Set `template_name` and optionally override `get_context_data` for dynamic data.
+    2. **`ListView`** — set `model` and optionally `context_object_name`. Override `get_queryset` to filter or sort. No boilerplate `objects.all()` needed.
+    3. **`DetailView`** — set `model` and use `pk` in your URL pattern. Django fetches the row and exposes it as both `object` and the lowercase model name.
+    4. **`FormView`** — handles the full GET/POST/validate/re-render cycle. You only need to implement `form_valid` for your own logic (e.g. sending an email or saving to a file).
+    5. **`CreateView`** — like `FormView` but calls `form.save()` automatically. Use it when your form maps to a model and you always want to insert a new row.
+    6. **All class-based views** are registered with `.as_view()` in `urls.py` and can be freely mixed with function-based views.
+    7. **None of these are mandatory.** They exist to reduce repetition. When in doubt, a plain function-based view is always a valid and explicit alternative.
+</Callout>

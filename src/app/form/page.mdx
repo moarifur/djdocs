@@ -1,0 +1,602 @@
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Django Forms & Class-Based Views
+
+A complete guide to handling user input with Django — from raw HTML forms to ModelForms and class-based views.
+
+---
+
+## Why Forms Matter
+
+The Django admin panel is great for you as the developer, but it's not meant for your site visitors. When you need users to submit data — reviews, comments, feedback — you need **user-facing forms**.
+
+This guide covers:
+
+- Building and submitting HTML forms
+- GET vs. POST requests
+- CSRF protection
+- Django's `Form` class for automatic rendering and validation
+- `ModelForm` for database-connected forms
+- Class-based views as a cleaner alternative to function-based views
+
+---
+
+## Project Setup
+
+<FileTree>
+    <FileTree.Folder name="feedback/" defaultOpen>
+        <FileTree.File name="settings.py" />
+        <FileTree.File name="urls.py" />
+        <FileTree.Folder name="reviews/" defaultOpen>
+            <FileTree.File name="models.py" />
+            <FileTree.File name="forms.py" />
+            <FileTree.File name="views.py" />
+            <FileTree.File name="urls.py" />
+            <FileTree.Folder name="templates/">
+                <FileTree.Folder name="reviews/">
+                    <FileTree.File name="review.html" />
+                    <FileTree.File name="thank_you.html" />
+                </FileTree.Folder>
+            </FileTree.Folder>
+            <FileTree.Folder name="static/">
+                <FileTree.Folder name="reviews/">
+                    <FileTree.File name="styles.css" />
+                </FileTree.Folder>
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+<Steps>
+
+    ### Create the app
+
+    ```bash
+    python3 manage.py startapp reviews
+    ```
+
+    ### Register it in `settings.py`
+
+    ```python
+    INSTALLED_APPS = [
+    # ...
+    'reviews',
+    ]
+    ```
+
+    <Callout type="warning">
+        If you forget to add your app to `INSTALLED_APPS`, Django will not discover your app-level templates, and you'll get a `TemplateDoesNotExist` error.
+    </Callout>
+
+    ### Wire up URLs
+
+    In `reviews/urls.py`:
+
+    ```python
+    from django.urls import path
+    from . import views
+
+    urlpatterns = [
+    path('', views.review, name='review'),
+    ]
+    ```
+
+    In `feedback/urls.py`:
+
+    ```python
+    from django.urls import path, include
+
+    urlpatterns = [
+    path('', include('reviews.urls')),
+    ]
+    ```
+
+    ### Create the view
+
+    ```python
+    # reviews/views.py
+    from django.shortcuts import render
+
+    def review(request):
+    return render(request, 'reviews/review.html')
+    ```
+
+</Steps>
+
+---
+
+## GET vs. POST Requests
+
+<Callout type="info">
+    When a browser visits a URL, it sends a **GET** request — it wants to *retrieve* something. When a user submits a form, you typically want to send a **POST** request — you're *submitting* data.
+</Callout>
+
+By default, an HTML form submits a GET request, which appends data to the URL as query parameters (e.g. `?username=Max`). To send data in the request body instead, set the `method` attribute to `post`:
+
+```html {2}
+<form action="/" method="post">
+  <!-- form controls -->
+</form>
+```
+
+| Method | Data location | Use case |
+|--------|--------------|----------|
+| `GET`  | URL query params (`?key=value`) | Fetching / filtering data |
+| `POST` | Request body | Submitting / creating data |
+
+---
+
+## CSRF Protection
+
+When you switch to `method="post"`, Django will immediately raise a **403 Forbidden** error unless you include a CSRF token.
+
+<Callout type="error">
+    **Never skip the CSRF token.** Cross-Site Request Forgery (CSRF) is an attack where a malicious site tricks a user's browser into submitting a request to your server without the user's knowledge. Django blocks all POST requests that lack a valid token.
+</Callout>
+
+**How it works:**
+
+1. Django generates a unique secret token for each session.
+2. Your form includes this token as a hidden `<input>`.
+3. On every POST, Django validates the token before processing data.
+4. Attackers can't forge the token because only your server knows how to generate it.
+
+**Fix:** Add `{% csrf_token %}` inside your `<form>` tag:
+
+```html {3}
+<form action="/" method="post">
+  {% csrf_token %}
+  <input type="text" id="username" name="username" />
+  <button type="submit">Send</button>
+</form>
+```
+
+After adding the token, Django renders a hidden input like:
+
+```html
+<input type="hidden" name="csrfmiddlewaretoken" value="abc123..." />
+```
+
+---
+
+## Handling Form Submission
+
+Both GET (load the page) and POST (submit the form) hit the same URL, so the same view function handles both. Differentiate with `request.method`:
+
+```python
+# reviews/views.py
+from django.shortcuts import render
+from django.http import HttpResponseRedirect
+
+def review(request):
+    if request.method == 'POST':
+        entered_username = request.POST['username']
+        print(entered_username)              # or save to DB
+        return HttpResponseRedirect('/thank-you')
+    return render(request, 'reviews/review.html')
+
+
+def thank_you(request):
+    return render(request, 'reviews/thank_you.html')
+```
+
+<Callout type="info">
+    After a POST, **always redirect** instead of rendering a template directly. This prevents the browser from showing a "Resubmit form data?" dialog when the user refreshes the page — known as the **Post/Redirect/Get** pattern.
+</Callout>
+
+Register the thank-you URL:
+
+```python
+# reviews/urls.py
+urlpatterns = [
+    path('', views.review, name='review'),
+    path('thank-you', views.thank_you, name='thank-you'),
+]
+```
+
+---
+
+## Manual Validation — and Why It's Tedious
+
+You can validate form data by hand:
+
+```python
+if request.method == 'POST':
+    entered_username = request.POST['username']
+
+    if not entered_username:               # empty check
+        return render(request, 'reviews/review.html', {
+            'has_error': True
+        })
+
+    # more checks, e.g. len(entered_username) >= 100
+```
+
+And in the template:
+
+```django
+{% if has_error %}
+  <p>This form is invalid — please enter a valid username.</p>
+{% endif %}
+```
+
+<Callout type="warning">
+    This approach scales poorly. A form with 5 fields and multiple validation rules per field quickly becomes hundreds of lines of repetitive code — and you have to repeat it for every form in your project. Django's `Form` class solves this.
+</Callout>
+
+---
+
+## The Django `Form` Class
+
+Django provides a `Form` base class that handles rendering, validation, and error messages automatically.
+
+### Define the form
+
+Create `reviews/forms.py`:
+
+```python
+from django import forms
+
+class ReviewForm(forms.Form):
+    user_name = forms.CharField(
+        label='Your Name',
+        max_length=100,
+        error_messages={
+            'required': 'Your name must not be empty.',
+            'max_length': 'Please enter a shorter name.',
+        }
+    )
+```
+
+### Use the form in the view
+
+```python
+# reviews/views.py
+from django.shortcuts import render
+from django.http import HttpResponseRedirect
+from .forms import ReviewForm
+
+def review(request):
+    if request.method == 'POST':
+        form = ReviewForm(request.POST)       # bind submitted data
+        if form.is_valid():
+            print(form.cleaned_data)          # validated dict
+            return HttpResponseRedirect('/thank-you')
+    else:
+        form = ReviewForm()                   # empty form for GET
+
+    return render(request, 'reviews/review.html', {'form': form})
+```
+
+<Callout>
+    `form.is_valid()` does three things at once:
+    1. Validates all fields against their rules
+    2. Returns `True` / `False`
+    3. Populates `form.cleaned_data` with the sanitised values (only available when valid)
+</Callout>
+
+### Render the form in the template
+
+```django
+<form action="/" method="post">
+  {% csrf_token %}
+  {{ form }}
+  <button type="submit">Send</button>
+</form>
+```
+
+Django automatically generates the correct `<label>` and `<input>` elements, including `required` and `maxlength` HTML attributes for browser-side pre-validation.
+
+---
+
+## Customising the Form Controls
+
+<Tabs items={['Label & Errors', 'Widgets', 'Optional Fields']}>
+    <Tabs.Tab>
+
+        You can override the label and per-error messages on each field:
+
+        ```python
+        user_name = forms.CharField(
+        label='Your Name',
+        max_length=100,
+        error_messages={
+        'required': 'Your name must not be empty.',
+        'max_length': 'Please enter a shorter name (max 100 chars).',
+    }
+        )
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        Control which HTML element is rendered using the `widget` argument. For example, render a `<textarea>` instead of `<input type="text">`:
+
+```python
+review_text = forms.CharField(
+    label='Your Feedback',
+    max_length=200,
+    widget=forms.Textarea,
+)
+```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        All form fields are `required=True` by default. Make a field optional with:
+
+        ```python
+        nickname = forms.CharField(
+        label='Nickname (optional)',
+        required=False,
+        )
+        ```
+
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Customising the Rendered HTML
+
+Instead of rendering `{{ form }}` as a whole, you can render individual parts of each field:
+
+```django
+{% for field in form %}
+<div class="form-control {% if field.errors %}errors{% endif %}">
+    {{ field.label_tag }}
+    {{ field }}
+    {{ field.errors }}
+</div>
+{% endfor %}
+```
+
+This gives you full control over the DOM structure while still relying on Django for the heavy lifting.
+
+<Callout type="info">
+    `field.errors` is truthy when there are errors, making it easy to conditionally add a CSS class (e.g. `errors`) to the wrapper `<div>` for red-border styling.
+</Callout>
+
+---
+
+## Adding More Form Fields
+
+Add as many fields as you need — Django handles rendering and validation for all of them:
+
+```python
+# reviews/forms.py
+from django import forms
+
+class ReviewForm(forms.Form):
+user_name = forms.CharField(
+label='Your Name',
+max_length=100,
+error_messages={'required': 'Your name must not be empty.'}
+)
+review_text = forms.CharField(
+label='Your Feedback',
+max_length=200,
+widget=forms.Textarea,
+)
+rating = forms.IntegerField(
+label='Your Rating',
+min_value=1,
+max_value=5,
+)
+```
+
+The template `{% for field in form %}` loop automatically picks up all new fields — no template changes needed.
+
+---
+
+## Storing Form Data in a Database
+
+### Define the model
+
+```python
+# reviews/models.py
+from django.db import models
+
+class Review(models.Model):
+user_name   = models.CharField(max_length=100)
+review_text = models.TextField()
+rating      = models.IntegerField()
+```
+
+### Run migrations
+
+```bash
+python3 manage.py makemigrations
+python3 manage.py migrate
+```
+
+### Save validated data
+
+```python
+# reviews/views.py
+from .models import Review
+
+def review(request):
+if request.method == 'POST':
+form = ReviewForm(request.POST)
+if form.is_valid():
+review = Review(
+user_name=form.cleaned_data['user_name'],
+review_text=form.cleaned_data['review_text'],
+rating=form.cleaned_data['rating'],
+)
+review.save()
+return HttpResponseRedirect('/thank-you')
+else:
+form = ReviewForm()
+
+return render(request, 'reviews/review.html', {'form': form})
+```
+
+<Callout>
+    **Form vs. Model fields** — they look similar but serve different purposes:
+    - **Form fields** (`forms.CharField`) control *how data is captured and validated in HTML*.
+    - **Model fields** (`models.CharField`) control *how data is stored in the database*.
+</Callout>
+
+---
+
+## ModelForms
+
+When your form maps closely to a model, use `ModelForm` to let Django infer the form controls automatically:
+
+```python
+# reviews/forms.py
+from django import forms
+from .models import Review
+
+class ReviewForm(forms.ModelForm):
+class Meta:
+model  = Review
+fields = '__all__'          # or list specific fields
+labels = {
+'user_name':   'Your Name',
+    'review_text': 'Your Feedback',
+    'rating':      'Your Rating',
+}
+error_messages = {
+'user_name': {
+    'required':   'Your name must not be empty.',
+        'max_length': 'Please enter a shorter name.',
+}
+}
+```
+
+<Tabs items={['fields = "__all__"', 'Selective fields', 'Exclude fields']}>
+    <Tabs.Tab>
+
+        Include every model field (except the auto-generated `id`):
+
+        ```python
+        fields = '__all__'
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        Explicitly list only the fields you want:
+
+        ```python
+        fields = ['user_name', 'review_text', 'rating']
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        Include everything except certain fields:
+
+        ```python
+        exclude = ['owner_comment']
+        ```
+
+    </Tabs.Tab>
+</Tabs>
+
+### Saving with ModelForm
+
+Because `ReviewForm` is now connected to `Review`, you can skip creating the model instance manually:
+
+```python
+# reviews/views.py
+def review(request):
+if request.method == 'POST':
+form = ReviewForm(request.POST)
+if form.is_valid():
+form.save()             # creates a new DB row automatically
+return HttpResponseRedirect('/thank-you')
+else:
+form = ReviewForm()
+
+return render(request, 'reviews/review.html', {'form': form})
+```
+
+**Updating an existing record** is equally simple — pass `instance`:
+
+```python
+existing = Review.objects.get(id=1)
+form = ReviewForm(request.POST, instance=existing)
+if form.is_valid():
+form.save()     # updates the existing row instead of inserting a new one
+```
+
+---
+
+## Class-Based Views
+
+Function-based views require an `if request.method == 'POST'` guard. Class-based views replace that with dedicated methods named after HTTP verbs.
+
+<Callout type="info">
+    Class-based views are optional — you can mix them with function-based views in the same project. They shine when a view needs to handle multiple HTTP methods with distinct logic.
+</Callout>
+
+### Converting to a class-based view
+
+```python
+# reviews/views.py
+from django.views import View
+from django.shortcuts import render
+from django.http import HttpResponseRedirect
+from .forms import ReviewForm
+
+class ReviewView(View):
+
+def get(self, request):
+form = ReviewForm()
+return render(request, 'reviews/review.html', {'form': form})
+
+def post(self, request):
+form = ReviewForm(request.POST)
+if form.is_valid():
+form.save()
+return HttpResponseRedirect('/thank-you')
+return render(request, 'reviews/review.html', {'form': form})
+```
+
+### Registering a class-based view in `urls.py`
+
+```python
+from .views import ReviewView
+
+urlpatterns = [
+path('', ReviewView.as_view(), name='review'),
+]
+```
+
+<Callout type="warning">
+    Always call `.as_view()` when registering a class-based view in `urlpatterns`. Without it, Django cannot route requests to the correct HTTP method handler.
+</Callout>
+
+### Available built-in view classes
+
+Django ships with many specialised view classes you can inherit from:
+
+| Class | Use case |
+|-------|----------|
+| `View` | Generic; define `get`, `post`, etc. yourself |
+| `ListView` | Render a list of model objects |
+| `DetailView` | Render a single model object |
+| `FormView` | Specialised form handling with less boilerplate |
+| `CreateView` | Create a new model object |
+| `UpdateView` | Update an existing model object |
+| `DeleteView` | Delete a model object |
+
+Find the full reference in the [Django docs → Built-in class-based views](https://docs.djangoproject.com/en/stable/ref/class-based-views/).
+
+---
+
+## Summary
+
+<Callout>
+    **Key takeaways from this section:**
+
+    1. **Raw HTML forms** work, but manual validation and rendering is verbose and repetitive.
+    2. **`forms.Form`** gives you automatic rendering, validation, error messages, and data re-population on invalid submission.
+    3. **`forms.ModelForm`** goes one step further — it infers form controls from a model and lets you call `form.save()` directly.
+    4. **Class-based views** replace the `if request.method == 'POST'` pattern with dedicated `get()` and `post()` methods, keeping your code more structured.
+    5. Always use `{% csrf_token %}` in POST forms and always redirect after a successful POST.
+</Callout>

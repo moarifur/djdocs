@@ -1,0 +1,425 @@
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Django Sessions
+
+A complete guide to understanding, configuring, and using Django's built-in session framework — including how to store and read user-specific data, what kinds of data belong in a session, and how to access it safely.
+
+<Callout type="info">
+    Sessions are the mechanism behind features you already rely on — like staying logged in to the Django Admin after closing and reopening your browser.
+</Callout>
+
+---
+
+## What Problem Do Sessions Solve?
+
+Consider a reviews app where each visitor wants to mark a review as their **favorite**. You have two options:
+
+| Approach | Problem |
+|---|---|
+| Edit the `Review` model's `is_favorite` field in the database | This is shared global state — all users would see the same "favorite" |
+| Store per-visitor state somewhere else | ✅ Sessions solve exactly this |
+
+Sessions let every visitor carry their own private slice of state. Multiple visitors can each have a different favorite review, without touching the database model at all.
+
+---
+
+## What Are Sessions?
+
+A session is a **persistent connection** between a client (browser) and a server. It survives page reloads, tab closes, and even computer restarts — until it expires or is explicitly cleared.
+
+<Callout>
+    Think of sessions as "temporary persistent" data. Not forever, but long-lived — and you as the developer control how long.
+</Callout>
+
+### How They Work Under the Hood
+
+```
+┌─────────────┐         1. First request          ┌─────────────┐
+│   Browser   │ ──────────────────────────────── ▶ │   Django    │
+│             │                                    │   Server    │
+│             │ ◀────────────────────────────────  │             │
+│  🍪 stores  │  2. Response sets session cookie   │  🗄 stores  │
+│  session ID │     (contains unique session ID)   │  session    │
+└─────────────┘                                    │  data in DB │
+       │                                           └─────────────┘
+       │         3. All future requests                   ▲
+       └──────── automatically include cookie ────────────┘
+                 Django looks up the session
+                 and knows who you are
+```
+
+- **Server** stores session data + a unique session ID (in the database by default)
+- **Client** stores a cookie containing just the session ID
+- On every future request, the browser sends the cookie; Django looks up the matching session data
+
+Django handles all of this automatically. As a developer you only need to read and write data.
+
+---
+
+## Enabling & Configuring Sessions
+
+<Steps>
+
+    ### Verify `settings.py`
+
+    Django includes session support out of the box. Open your project's `settings.py` and confirm both of these are present:
+
+    ```python filename="settings.py"
+    INSTALLED_APPS = [
+    # ...
+    "django.contrib.sessions",   # ← must be here
+    # ...
+    ]
+
+    MIDDLEWARE = [
+    # ...
+    "django.contrib.sessions.middleware.SessionMiddleware",  # ← must be here
+    # ...
+    ]
+    ```
+
+    <Callout type="warning">
+        Both entries are added by default when you run `django-admin startproject`. If you scaffolded your project normally, you likely don't need to change anything.
+    </Callout>
+
+    ### (Optional) Configure session lifetime
+
+    You can control how long a session cookie lives by adding `SESSION_COOKIE_AGE` to `settings.py`. The value is in **seconds**; the default is two weeks.
+
+    ```python filename="settings.py"
+    # Default: 1209600 (two weeks in seconds)
+    SESSION_COOKIE_AGE = 1209600
+
+    # Example: expire after 2 minutes (useful for testing)
+    # SESSION_COOKIE_AGE = 120
+    ```
+
+    <Callout>
+        The default of two weeks is fine for most applications. Consult the [Django session settings docs](https://docs.djangoproject.com/en/stable/ref/settings/#sessions) for the full list of tuning options.
+    </Callout>
+
+    ### Run migrations
+
+    Sessions are stored in the database. Make sure the `django_session` table exists:
+
+    ```bash
+    python manage.py migrate
+    ```
+
+</Steps>
+
+---
+
+## Writing Data to a Session
+
+The `request` object in every Django view has a `.session` attribute. It behaves like a dictionary — you can write to it using any string key.
+
+<Tabs items={['Function View', 'Class-Based View']}>
+    <Tabs.Tab>
+
+        ```python filename="reviews/views.py"
+        from django.http import HttpResponseRedirect
+
+        def add_favorite(request):
+        if request.method == "POST":
+        review_id = request.POST["review_id"]
+
+        # Write to the session — just like a dict
+        request.session["favorite_review"] = review_id
+
+        return HttpResponseRedirect(f"/reviews/{review_id}/")
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ```python filename="reviews/views.py"
+        from django.views import View
+        from django.http import HttpResponseRedirect
+        from .models import Review
+
+        class AddFavoriteView(View):
+        def post(self, request):
+        review_id = request.POST["review_id"]
+
+        # Write to the session
+        request.session["favorite_review"] = review_id
+
+        return HttpResponseRedirect(f"/reviews/{review_id}/")
+        ```
+
+    </Tabs.Tab>
+</Tabs>
+
+Django automatically serializes this data to JSON and stores it in the database. No extra `.save()` call is needed — assigning to `request.session` is enough.
+
+### Triggering the write from a template
+
+Wrap a button in a mini form to send the review ID as a POST request:
+
+```html filename="templates/reviews/single_review.html"
+<form method="POST" action="/reviews/favorite/">
+  {% csrf_token %}
+  <input type="hidden" name="review_id" value="{{ review.id }}" />
+  <button type="submit">⭐ Favorite</button>
+</form>
+```
+
+Register the URL before any dynamic-segment paths to avoid routing conflicts:
+
+```python filename="reviews/urls.py"
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("favorite/", views.AddFavoriteView.as_view(), name="add-favorite"),
+    path("<int:pk>/",  views.SingleReviewView.as_view(), name="single-review"),
+    # ↑ "favorite/" must come first so it isn't captured as a pk
+]
+```
+
+---
+
+## What Kind of Data Should Go in a Session?
+
+<Callout type="error" emoji="🚫">
+    **Never store model objects (or any Python objects) in a session.**
+
+    Django serializes session data to JSON. JSON cannot represent Python objects with methods — attempting to store one raises:
+
+    ```
+    TypeError: Object of type Review is not JSON serializable
+    ```
+</Callout>
+
+<Tabs items={['✅ Do This', '❌ Not This']}>
+    <Tabs.Tab>
+
+        Store **primitive values** and **plain dictionaries**:
+
+        ```python
+        # ✅ Store the ID (a number or string)
+        request.session["favorite_review"] = review_id
+
+        # ✅ Store a boolean flag
+        request.session["has_accepted_terms"] = True
+
+        # ✅ Store a simple dict
+        request.session["cart"] = {"item_id": 5, "qty": 2}
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        Never store model instances or complex objects:
+
+        ```python
+        # ❌ This raises TypeError — Review is not JSON serializable
+        favorite_review = Review.objects.get(pk=review_id)
+        request.session["favorite_review"] = favorite_review
+
+        # ❌ Same problem with any custom class instance
+        request.session["user_prefs"] = MyPreferences(color="blue")
+        ```
+
+    </Tabs.Tab>
+</Tabs>
+
+**The rule of thumb:** store the minimum identifier you need (like an ID), and re-fetch the full object from the database when you need it.
+
+---
+
+## Reading Data from a Session
+
+### Direct key access
+
+You can read session data like a regular dictionary:
+
+```python
+favorite_id = request.session["favorite_review"]
+```
+
+<Callout type="error">
+    **Danger:** direct key access raises a `KeyError` if the key doesn't exist yet — for example, when a user visits for the first time before setting any favorite.
+</Callout>
+
+### Safe access with `.get()` (recommended)
+
+Always prefer `.get()` so missing keys return `None` (or a default) instead of crashing:
+
+```python
+favorite_id = request.session.get("favorite_review")
+# Returns None if "favorite_review" was never set
+
+# Or with an explicit default:
+favorite_id = request.session.get("favorite_review", None)
+```
+
+---
+
+## Using Session Data in a View
+
+Here's a complete example using `DetailView`. It reads the session to decide whether to show "This is my favorite" or the "Favorite" button:
+
+```python filename="reviews/views.py"
+from django.views.generic import DetailView
+from .models import Review
+
+class SingleReviewView(DetailView):
+    model = Review
+    template_name = "reviews/single_review.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # self.object   → the Review fetched by DetailView automatically
+        # self.request  → the current HTTP request
+
+        # Safe read: returns None if key was never set
+        favorite_id = self.request.session.get("favorite_review")
+
+        # Compare strings: form data is always a string; convert the int ID
+        context["is_favorite"] = (favorite_id == str(self.object.id))
+
+        return context
+```
+
+<Callout type="warning">
+    **Type mismatch gotcha:** form inputs always submit strings. A model's `.id` field is an integer. The comparison `favorite_id == self.object.id` will always be `False` even when the IDs match, because `"1" != 1`. Wrap the model ID in `str()` to compare correctly.
+</Callout>
+
+### Using the value in the template
+
+```html filename="templates/reviews/single_review.html"
+{% if is_favorite %}
+  <p>⭐ This is your favorite review!</p>
+{% else %}
+  <form method="POST" action="/reviews/favorite/">
+    {% csrf_token %}
+    <input type="hidden" name="review_id" value="{{ review.id }}" />
+    <button type="submit">⭐ Favorite</button>
+  </form>
+{% endif %}
+```
+
+---
+
+## Full Flow Walkthrough
+
+<Steps>
+
+    ### User visits a review page
+
+    `GET /reviews/1/` → `SingleReviewView.get_context_data()` runs, calls `request.session.get("favorite_review")` which returns `None` (no favorite set yet) → template shows the **Favorite** button.
+
+    ### User clicks "Favorite"
+
+    `POST /reviews/favorite/` with `review_id=1` in the body → `AddFavoriteView.post()` runs:
+
+    ```python
+    request.session["favorite_review"] = "1"
+    # Django saves this to the database automatically
+    return HttpResponseRedirect("/reviews/1/")
+    ```
+
+    ### User is redirected back
+
+    `GET /reviews/1/` again → `get_context_data()` runs, `request.session.get("favorite_review")` now returns `"1"` → `"1" == str(1)` is `True` → template shows **"This is your favorite review!"**
+
+    ### User favorites a different review
+
+    `POST /reviews/favorite/` with `review_id=2` → the session key is **overwritten**:
+
+    ```python
+    request.session["favorite_review"] = "2"
+    ```
+
+    Now visiting `/reviews/1/` shows the button again, and `/reviews/2/` shows the favorite message.
+
+</Steps>
+
+---
+
+## Session Data Is Per-User
+
+Each visitor of your site gets their own independent session. The session ID cookie stored in their browser links to their personal session row in the database.
+
+```
+Visitor A  →  session: { "favorite_review": "1" }
+Visitor B  →  session: { "favorite_review": "3" }
+Visitor C  →  session: {}   ← hasn't favorited anything yet
+```
+
+No server-side code is needed to separate them — Django handles this automatically via the cookie.
+
+---
+
+## Quick Reference
+
+<Tabs items={['Writing', 'Reading', 'Settings']}>
+    <Tabs.Tab>
+
+        ```python
+        # Write a value (any JSON-serializable type)
+        request.session["key"] = value
+
+        # Django automatically persists to the database
+        # No .save() call required
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ```python
+        # ❌ Direct access — crashes if key missing
+        value = request.session["key"]
+
+        # ✅ Safe access — returns None if key missing
+        value = request.session.get("key")
+
+        # ✅ Safe access with a fallback default
+        value = request.session.get("key", "default_value")
+
+        # Delete a key
+        del request.session["key"]
+
+        # Clear the entire session
+        request.session.flush()
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ```python filename="settings.py"
+        # How long a session cookie lives (seconds). Default = 2 weeks.
+        SESSION_COOKIE_AGE = 1209600
+
+        # Where sessions are stored. Default = database.
+        SESSION_ENGINE = "django.contrib.sessions.backends.db"
+
+        # Make cookie expire when browser closes (ignores SESSION_COOKIE_AGE)
+        SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+        ```
+
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Summary
+
+<Callout type="info" emoji="✅">
+    **Key takeaways from this module:**
+</Callout>
+
+| Topic | What to remember |
+|---|---|
+| What sessions are | A long-lived, per-visitor key-value store managed by Django |
+| How they work | Server stores data in DB; browser stores only a session ID cookie |
+| Enabling sessions | `django.contrib.sessions` in `INSTALLED_APPS` + `SessionMiddleware` in `MIDDLEWARE` (both on by default) |
+| `SESSION_COOKIE_AGE` | Controls lifetime in seconds; default is two weeks |
+| Writing data | `request.session["key"] = value` — no `.save()` needed |
+| Reading data | Always use `request.session.get("key")` to avoid `KeyError` on first visit |
+| What to store | Strings, numbers, booleans, plain dicts — **not** objects |
+| Type mismatch | Form data is always a string; compare with `str(model.id)` not `model.id` directly |
+| Per-user isolation | Each visitor gets their own session automatically — no extra code required |

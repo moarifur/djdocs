@@ -1,98 +1,163 @@
-# Model Relations & Foreign Keys
+---
+title: Data Modeling in Django
+description: Define ForeignKey, OneToOneField, and ManyToManyField relationships in models.py, then apply migrations.
+---
 
-Learn how to link Django models together using `ForeignKey` fields, manage related data, and handle migrations safely.
+import { Callout, Steps, Tabs } from 'nextra/components'
+
+# Data Modeling in Django
+
+This page covers how to define each relationship type in `models.py` and apply the resulting migrations. For theory on when to use each type, see [Types of Relationships](/type).
 
 ---
 
-## Creating a Separate Author Model
+## Defining Relationship Fields
 
-Instead of storing author names as plain text (which risks typos and duplicate entries), create a dedicated `Author` model with its own database table.
+<Tabs items={['One To One', 'One To Many', 'Many To Many']}>
+    <Tabs.Tab>
+        ### One To One
 
-```python filename="models.py"
-from django.db import models
+        Use `OneToOneField` when each record in one model maps to exactly one record in another. Place it on whichever model is the natural "owner" of the relationship.
 
-class Author(models.Model):
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-```
+        ```python
+        # models.py
+        from django.db import models
 
-This gives every author a unique ID and makes it easy to map books to specific authors without ambiguity.
+        class Address(models.Model):
+            street = models.CharField(max_length=80)
+            postal_code = models.CharField(max_length=5)
+            city = models.CharField(max_length=50)
+
+            def __str__(self):
+                return f"{self.street}, {self.postal_code} {self.city}"
+
+        class Meta:
+            verbose_name_plural = "address entries"
+
+        class Author(models.Model):
+            first_name = models.CharField(max_length=100)
+            last_name = models.CharField(max_length=100)
+            address = models.OneToOneField(
+                Address,
+                on_delete=models.CASCADE,
+                null=True,
+            )
+
+            def __str__(self):
+                return f"{self.first_name} {self.last_name}"
+        ```
+
+        <Callout>
+            The reverse accessor for a `OneToOneField` is singular — `address.author` — not a set, because only one record can ever match.
+        </Callout>
+    </Tabs.Tab>
+
+    <Tabs.Tab>
+        ### One-to-Many(ForeignKey)
+
+        Place the `ForeignKey` on the model that holds the reference — the "many" side. Always define the referenced model (`Author`) above the referencing model (`Book`) in the file, or use a string reference.
+
+        ```python
+        # models.py
+        from django.db import models
+
+        class Author(models.Model):
+            first_name = models.CharField(max_length=100)
+            last_name = models.CharField(max_length=100)
+
+            def __str__(self):
+                return f"{self.first_name} {self.last_name}"
+
+        class Book(models.Model):
+            title = models.CharField(max_length=200)
+            author = models.ForeignKey(
+                Author,
+                on_delete=models.CASCADE,
+                related_name="books",
+                null=True,
+            )
+
+            def __str__(self):
+                return self.title
+        ```
+
+        <Callout type="info">
+            `null=True` is required when adding a `ForeignKey` to a model that already has rows — it lets Django set existing records to `NULL` during migration instead of requiring a one-off default.
+        </Callout>
+
+        #### `on_delete` options
+
+        | Option | Behavior |
+        |---|---|
+        | `CASCADE` | Deletes all related books when the author is deleted |
+        | `SET_NULL` | Sets the field to `NULL` (requires `null=True`) |
+        | `SET_DEFAULT` | Sets the field to its default value |
+        | `PROTECT` | Prevents deletion if related records exist |
+        | `DO_NOTHING` | Takes no action (use with caution) |
+    </Tabs.Tab>
+
+    <Tabs.Tab>
+        ### Many To Many
+
+        Define the field on whichever model feels most natural. Django automatically creates a hidden intermediate table to store the mapping — you never define or migrate it manually.
+
+        ```python
+        # models.py
+        from django.db import models
+
+        class Country(models.Model):
+            name = models.CharField(max_length=80)
+            code = models.CharField(max_length=2)
+
+            def __str__(self):
+                return self.name
+
+        class Meta:
+            verbose_name_plural = "Countries"
+
+        class Book(models.Model):
+            title = models.CharField(max_length=200)
+            published_countries = models.ManyToManyField(
+                Country,
+                related_name="books",
+            )
+
+            def __str__(self):
+                return self.title
+        ```
+
+        <Callout type="warning">
+            Do **not** add `on_delete` to a `ManyToManyField`. Django manages deletions through the intermediate table automatically.
+        </Callout>
+    </Tabs.Tab>
+</Tabs>
 
 ---
 
-## Connecting Models with ForeignKey
+## Applying Migrations
 
-To link the `Book` model to `Author`, replace the plain `CharField` for `author` with a `ForeignKey` field:
-
-```python filename="models.py" {9}
-class Book(models.Model):
-    title = models.CharField(max_length=200)
-    author = models.ForeignKey(
-        Author,
-        on_delete=models.CASCADE,
-        null=True
-    )
-```
-
-A `ForeignKey` does not store the author's name directly. Instead, it stores a **pointer** (the author's ID) to an entry in the `Author` table. Django manages the underlying SQL relationship automatically.
-
----
-
-## The `on_delete` Parameter
-
-When a related object is deleted, Django needs to know what to do with records that point to it. This is controlled by the required `on_delete` argument.
-
-| Option | Behavior |
-|---|---|
-| `models.CASCADE` | Deletes all related books when the author is deleted |
-| `models.PROTECT` | Prevents deletion of an author if related books exist |
-| `models.SET_NULL` | Sets the `author` field to `null` (requires `null=True`) |
-
-```python
-# Cascade: deleting an author also deletes their books
-author = models.ForeignKey(Author, on_delete=models.CASCADE)
-
-# Set null: book remains, author field becomes null
-author = models.ForeignKey(Author, on_delete=models.CASCADE, null=True)
-```
-
-> **Tip:** Use `null=True` on a `ForeignKey` if you want to allow books without an author, or to safely handle migration from a text field.
-
----
-
-## Running Migrations
-
-After adding a new model or changing a field, always create and apply migrations:
+After defining or changing any model field, run:
 
 ```bash
 python manage.py makemigrations
 python manage.py migrate
 ```
 
-### Common Migration Warning
+### Handling migration warnings
 
-When changing `author` from a `CharField` to a `ForeignKey`, Django will warn that the field is non-nullable without a default. This happens because:
+When changing a field type (e.g., from a plain `CharField` to a `ForeignKey`), Django warns that the field is non-nullable without a default. This is because the old column stored text while the new column expects an integer ID.
 
-- The old column stored **text** (e.g., `"J.R.R. Tolkien"`)
-- The new column expects an **integer ID** pointing to the `Author` table
+**Fix:** Add `null=True` to the field before running `makemigrations` again.
 
-**Fix:** Add `null=True` to the `ForeignKey` field before running `makemigrations` again. This allows Django to set existing rows to `null` during the migration.
+### Handling invalid foreign key errors
 
----
-
-## Handling Invalid Foreign Key Errors
-
-If you run `migrate` and see an error like:
+If you see:
 
 ```
 Row in table 'bookoutlet_book' with primary key 2 has an invalid foreign key.
 ```
 
-This means existing rows contain old text values (e.g., `"JRR Tolkien"`) in the field that is now expected to hold integer IDs. Those values are not valid pointers to the `Author` table.
-
-### Resolution
-
-Clear the existing data from the Django shell before migrating:
+Existing rows contain old text values in a field that now expects integer IDs. Clear the stale data before migrating:
 
 ```bash
 python manage.py shell
@@ -100,44 +165,12 @@ python manage.py shell
 
 ```python
 from bookoutlet.models import Book
-
 Book.objects.all().delete()
 exit()
 ```
 
-Then re-run the migration:
+Then re-run `migrate`.
 
-```bash
-python manage.py migrate
-```
-
-> **Best practice:** Design your models upfront before adding data. Changing field types on a table with existing data requires either clearing that data or writing a custom data migration.
-
----
-
-## Full Example
-
-```python filename="models.py"
-from django.db import models
-
-
-class Author(models.Model):
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-
-
-class Book(models.Model):
-    title = models.CharField(max_length=200)
-    author = models.ForeignKey(
-        Author,
-        on_delete=models.CASCADE,
-        null=True
-    )
-```
-
-```bash
-python manage.py makemigrations
-python manage.py migrate
-```
-
-With this setup, each `Book` record holds a reference to an `Author` entry, and Django handles all the SQL join logic behind the scenes.
+<Callout type="info">
+    Design your models before adding data. Changing field types on a populated table requires either clearing that data or writing a custom data migration.
+</Callout>

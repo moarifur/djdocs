@@ -1,76 +1,65 @@
-# Querying Related Data in Django
+---
+title: Django ORM Relationship Lookups
+description: Query across related models using __ syntax, reverse accessors, and related_name.
+---
 
-Django provides an intuitive and powerful API for querying across related models using double underscores (`__`). This guide covers both forward and reverse relationship queries.
+import { Callout } from 'nextra/components'
+
+# Django ORM Relationship Lookups
+
+Once your relationships are defined, Django's ORM lets you query across them using double underscore (`__`) syntax and automatic reverse accessors.
 
 ---
 
-## Querying by Related Model Fields
+## Filtering by a Related Field
 
-When you want to filter a queryset based on a field in a **related model**, Django uses the `__` (double underscore) syntax to traverse relationships.
-
-### Basic Example
-
-To find all books where the author's last name is `"Rowling"`:
+To filter a queryset based on a field in a related model, chain the relation field and the target field with `__`:
 
 ```python
-books_by_rowling = Book.objects.filter(author__last_name="Rowling")
+# All books where the author's last name is "Rowling"
+Book.objects.filter(author__last_name="Rowling")
 ```
 
-### Using Field Modifiers
-
-You can chain additional lookup modifiers (like `contains`, `gt`, `icontains`, etc.) by appending another `__`:
+Add a lookup modifier for partial or comparative matches:
 
 ```python
-# Find books where author's last name contains "ling"
-books = Book.objects.filter(author__last_name__contains="ling")
+# Author's last name contains "ling"
+Book.objects.filter(author__last_name__contains="ling")
 ```
 
-### General Pattern
+### General pattern
 
 ```
-<ModelClass>.objects.filter(<relation_field>__<related_field>__<modifier>=<value>)
+Model.objects.filter(<relation_field>__<related_field>__<modifier>=<value>)
 ```
 
 | Part | Description |
 |---|---|
 | `relation_field` | The ForeignKey field on the current model (e.g., `author`) |
 | `related_field` | A field on the related model (e.g., `last_name`) |
-| `modifier` _(optional)_ | A lookup modifier like `contains`, `gt`, `icontains` |
+| `modifier` *(optional)* | A lookup like `contains`, `icontains`, `gt`, `lt` |
 
 ---
 
-## Accessing the Reverse Relation
+## Reverse Accessors
 
-Django automatically creates a **reverse accessor** on the related model so you can query from the "other side" of a relationship.
+Django automatically creates a reverse accessor on the related model so you can query from the other side of a relationship.
 
-### Default: `<modelname>_set`
-
-Given an `Author` instance, you can access all their books via the auto-generated `book_set` manager:
+### Default name: `<modelname>_set`
 
 ```python
 rowling = Author.objects.get(first_name="J.K.")
 
-# Access all related books
 rowling.book_set.all()
-```
-
-`book_set` works just like `objects` — you can call `.all()`, `.filter()`, `.get()`, and chain lookups:
-
-```python
-# Get a specific book
 rowling.book_set.get(title="Harry Potter 1")
-
-# Filter books with rating > 3
 rowling.book_set.filter(rating__gt=3)
 ```
 
-> **How it's named:** Django takes the related model's class name (`Book`), lowercases it, and appends `_set` → `book_set`.
+Django derives the name from the related model's class name, lowercased, with `_set` appended.
 
----
+### Customizing with `related_name`
 
-## Customizing the Reverse Accessor Name
-
-If you prefer a more readable name, set `related_name` on the `ForeignKey` field:
+Set `related_name` on the field to use a cleaner accessor name:
 
 ```python
 # models.py
@@ -78,21 +67,17 @@ class Book(models.Model):
     author = models.ForeignKey(
         Author,
         on_delete=models.CASCADE,
-        related_name="books"   # <-- custom reverse accessor name
+        related_name="books",   # replaces book_set
     )
 ```
 
-After setting `related_name`, you can use `.books` instead of `.book_set`:
-
 ```python
-rowling = Author.objects.get(first_name="J.K.")
 rowling.books.all()
+rowling.books.filter(rating__gt=3)
 ```
 
-import { Callout } from 'nextra/components'
-
 <Callout type="warning">
-    After changing `related_name` (or any model field), you must create and run new migrations:
+    After changing `related_name` (or any model field), create and apply new migrations:
 
     ```bash
     python manage.py makemigrations
@@ -102,18 +87,12 @@ import { Callout } from 'nextra/components'
 
 ---
 
-## Summary
+## Quick Reference
 
 | Use Case | Example |
 |---|---|
-| Filter books by author's last name | `Book.objects.filter(author__last_name="Rowling")` |
-| Filter with a modifier | `Book.objects.filter(author__last_name__contains="ling")` |
-| Access reverse relation (default) | `author_instance.book_set.all()` |
-| Access reverse relation (custom name) | `author_instance.books.all()` |
-| Filter on reverse relation | `author_instance.books.filter(rating__gt=3)` |
-
----
-
-## What's Next
-
-Now that you know how to query across relations, you can register both models in the **Django admin** to manage them — including their relationships — through a visual interface.
+| Filter by related field | `Book.objects.filter(author__last_name="Rowling")` |
+| Filter with modifier | `Book.objects.filter(author__last_name__contains="ling")` |
+| Reverse relation (default) | `author.book_set.all()` |
+| Reverse relation (custom name) | `author.books.all()` |
+| Filter on reverse relation | `author.books.filter(rating__gt=3)` |

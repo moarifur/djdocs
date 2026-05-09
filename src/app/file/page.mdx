@@ -1,0 +1,487 @@
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Django File Uploads & Storage
+
+A complete guide to handling file uploads in Django — from raw `request.FILES` access to model-driven storage and serving uploaded media.
+
+<Callout type="info">
+    This module builds a `profiles` app to demonstrate file upload, storage, and serving patterns step by step.
+</Callout>
+
+---
+
+## Overview
+
+By the end of this guide you will know how to:
+
+- Accept file uploads through an HTML form
+- Access uploaded files via `request.FILES`
+- Store files manually (naive approach) and understand its limitations
+- Use Django's `FileField` and `ImageField` on a model for automated storage
+- Configure `MEDIA_ROOT` and `MEDIA_URL` in settings
+- Serve uploaded files through the development server
+- Use `CreateView` and `ListView` to eliminate boilerplate
+
+---
+
+## Project Setup
+
+<Steps>
+
+    ### Create the `profiles` app
+
+    ```bash
+    python manage.py startapp profiles
+    ```
+
+    Download the starter folder and paste its contents into `profiles/` so you get the pre-configured `static/`, `templates/`, `views.py`, and `urls.py` files.
+
+    ### Register the app
+
+    Open your project's `settings.py` and add `profiles` to `INSTALLED_APPS`:
+
+    ```python filename="settings.py"
+    INSTALLED_APPS = [
+    # ...
+    "profiles",
+    ]
+    ```
+
+    <Callout type="warning">
+        Without this, Django will not discover your templates.
+    </Callout>
+
+    ### Start the dev server and verify
+
+    ```bash
+    python manage.py runserver
+    ```
+
+    Visit [http://localhost:8000/profiles](http://localhost:8000/profiles). You should see a basic form with a file picker and an **Upload** button.
+
+</Steps>
+
+---
+
+## How File Upload Works in Django
+
+<Tabs items={['HTML Form', 'Django View', 'request.FILES']}>
+    <Tabs.Tab>
+
+        For a form to submit files, two attributes are required:
+
+        ```html filename="templates/profiles/create_profile.html"
+        <form action="/profiles/" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="file" name="image" />
+            <button type="submit">Upload</button>
+        </form>
+        ```
+
+        | Attribute | Value | Why |
+        |---|---|---|
+        | `method` | `POST` | Files cannot be sent via GET |
+        | `enctype` | `multipart/form-data` | Tells the browser the request body contains a file |
+
+        <Callout type="error">
+            Omitting `enctype="multipart/form-data"` means the file will **never reach the server**, even if everything else is correct.
+        </Callout>
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ```python filename="profiles/views.py"
+        from django.views import View
+        from django.http import HttpResponseRedirect
+
+        class CreateProfileView(View):
+        def get(self, request):
+        return render(request, "profiles/create_profile.html")
+
+        def post(self, request):
+        uploaded_file = request.FILES["image"]
+        print(uploaded_file)  # InMemoryUploadedFile object
+        return HttpResponseRedirect("/profiles/")
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        `request.FILES` is a dictionary-like object populated by Django when a multipart form is submitted.
+
+        ```python
+        uploaded_file = request.FILES["image"]
+        # Key = the `name` attribute on your <input type="file">
+        ```
+
+        The value is an `UploadedFile` object with useful attributes and methods:
+
+        | Property / Method | Description |
+        |---|---|
+        | `.name` | Original filename |
+        | `.size` | File size in bytes |
+        | `.content_type` | MIME type |
+        | `.read()` | Read entire file into memory |
+        | `.chunks()` | Iterate over the file in chunks (memory-efficient) |
+
+        <Callout>
+            `request.POST` holds text form data. `request.FILES` holds uploaded files. They are separate objects.
+        </Callout>
+
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Storing Files
+
+### Naive Approach (Manual)
+
+You can write a helper function to persist the file using standard Python I/O:
+
+```python filename="profiles/views.py"
+def store_file(file):
+with open("temp/image.jpeg", "wb+") as dest:
+for chunk in file.chunks():
+dest.write(chunk)
+```
+
+<Callout type="warning">
+    **Limitations of the naive approach:**
+    - Hardcodes the file extension — only works with JPEG files
+    - Requires the `temp/` directory to exist beforehand
+    - No validation, no name-clash handling, no flexibility
+</Callout>
+
+You must create the `temp/` directory at your project root manually. Django will raise a `FileNotFoundError` otherwise.
+
+<FileTree>
+    <FileTree.Folder name="my_project" defaultOpen>
+        <FileTree.Folder name="profiles" />
+        <FileTree.Folder name="temp" />
+        <FileTree.File name="manage.py" />
+        <FileTree.File name="settings.py" />
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+### Model-Driven Approach (Recommended)
+
+Django's `FileField` automates file movement and path storage. Files are stored **on disk**; only the **path** is saved in the database.
+
+<Callout type="info">
+    Storing raw files in a database is considered bad practice — it bloats the DB and degrades performance. `FileField` keeps binary data on the filesystem and stores a lightweight path reference in the DB.
+</Callout>
+
+<Steps>
+
+    ### Configure `MEDIA_ROOT` in settings
+
+    ```python filename="settings.py"
+    from pathlib import Path
+
+    BASE_DIR = Path(__file__).resolve().parent.parent
+
+    MEDIA_ROOT = BASE_DIR / "uploads"
+    ```
+
+    This tells Django where to move uploaded files. Sub-paths defined in your models will be relative to this root.
+
+    ### Create the `UserProfile` model
+
+    ```python filename="profiles/models.py"
+    from django.db import models
+
+    class UserProfile(models.Model):
+    image = models.FileField(upload_to="images/")
+    ```
+
+    `upload_to="images/"` creates an `uploads/images/` folder inside `MEDIA_ROOT`.
+
+    ### Run migrations
+
+    ```bash
+    python manage.py makemigrations
+    python manage.py migrate
+    ```
+
+    ### Use the model in your view
+
+    ```python filename="profiles/views.py"
+    from django.views import View
+    from django.http import HttpResponseRedirect
+    from django.shortcuts import render
+    from .models import UserProfile
+
+    class CreateProfileView(View):
+    def get(self, request):
+    return render(request, "profiles/create_profile.html")
+
+    def post(self, request):
+    uploaded_file = request.FILES["user_image"]
+    profile = UserProfile(image=uploaded_file)
+    profile.save()  # Django moves the file and stores the path
+    return HttpResponseRedirect("/profiles/")
+    ```
+
+</Steps>
+
+After saving, the project structure will look like this:
+
+<FileTree>
+    <FileTree.Folder name="my_project" defaultOpen>
+        <FileTree.Folder name="uploads" defaultOpen>
+            <FileTree.Folder name="images" defaultOpen>
+                <FileTree.File name="me.jpg" />
+                <FileTree.File name="me_abc123.jpg" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.File name="manage.py" />
+    </FileTree.Folder>
+</FileTree>
+
+<Callout>
+    Django automatically appends a unique suffix when a file with the same name already exists (e.g. `me_abc123.jpg`).
+</Callout>
+
+---
+
+## FileField vs ImageField
+
+<Tabs items={['FileField', 'ImageField']}>
+    <Tabs.Tab>
+
+        Accepts **any** file type. Use when you have no restriction on what users can upload.
+
+        ```python filename="profiles/models.py"
+        class UserProfile(models.Model):
+        image = models.FileField(upload_to="images/")
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        Accepts **images only** (JPEG, PNG, GIF, WebP, etc.). Rejects PDFs, Word documents, and other non-image files — both at the browser level and on the server.
+
+        ```python filename="profiles/models.py"
+        class UserProfile(models.Model):
+        image = models.ImageField(upload_to="images/")
+        ```
+
+        `ImageField` requires the **Pillow** library:
+
+        ```bash
+        pip install Pillow
+        ```
+
+        <Callout type="error">
+            Forgetting to install Pillow will cause an immediate server error when Django tries to validate the image. The error message will tell you to run `pip install Pillow`.
+        </Callout>
+
+        **Also update your form field:**
+
+        ```python filename="profiles/forms.py"
+        from django import forms
+
+        class ProfileForm(forms.Form):
+        user_image = forms.ImageField()
+        # Previously: forms.FileField()
+        ```
+
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Using a Django Form with FileField
+
+Instead of accessing `request.FILES` manually, wrap the upload in a proper Django form for automatic validation.
+
+```python filename="profiles/forms.py"
+from django import forms
+
+class ProfileForm(forms.Form):
+user_image = forms.FileField()
+```
+
+Then use it in your view:
+
+```python filename="profiles/views.py"
+from .forms import ProfileForm
+
+class CreateProfileView(View):
+def get(self, request):
+form = ProfileForm()
+return render(request, "profiles/create_profile.html", {"form": form})
+
+def post(self, request):
+submitted_form = ProfileForm(request.POST, request.FILES)
+if submitted_form.is_valid():
+uploaded_file = request.FILES["user_image"]
+profile = UserProfile(image=uploaded_file)
+profile.save()
+return HttpResponseRedirect("/profiles/")
+return render(request, "profiles/create_profile.html", {"form": submitted_form})
+```
+
+<Callout>
+    Always pass **both** `request.POST` and `request.FILES` when instantiating a form that includes file fields. Omitting `request.FILES` means Django cannot find the uploaded file.
+</Callout>
+
+---
+
+## Using CreateView (Minimal Boilerplate)
+
+If you don't need custom labels or error messages, `CreateView` eliminates virtually all the manual code:
+
+```python filename="profiles/views.py"
+from django.views.generic.edit import CreateView
+from .models import UserProfile
+
+class CreateProfileView(CreateView):
+template_name = "profiles/create_profile.html"
+model = UserProfile
+fields = "__all__"
+success_url = "/profiles/"
+```
+
+<Callout type="info">
+    `CreateView` handles GET rendering, POST parsing, form validation, file saving, and redirect — all automatically. You only need the model configured correctly.
+</Callout>
+
+You can delete the `ProfileForm` class entirely when using this approach.
+
+---
+
+## Serving Uploaded Files
+
+By default, Django locks down all project folders — nothing is accessible from the browser. Uploaded files will return a **404** until you explicitly expose them.
+
+<Steps>
+
+    ### Add `MEDIA_URL` to settings
+
+    ```python filename="settings.py"
+    MEDIA_ROOT = BASE_DIR / "uploads"
+    MEDIA_URL  = "/user-media/"
+    ```
+
+    | Setting | Purpose |
+    |---|---|
+    | `MEDIA_ROOT` | Filesystem path where files are physically stored |
+    | `MEDIA_URL` | URL prefix through which the browser can request those files |
+
+    ### Update the project-level `urls.py`
+
+    <Callout type="warning">
+        This change must go in the **project-level** `urls.py`, not an app-level one. The project `urls.py` is the main entry point for all requests.
+    </Callout>
+
+    ```python filename="my_project/urls.py"
+    from django.conf import settings
+    from django.conf.urls.static import static
+    from django.urls import path, include
+
+    urlpatterns = [
+    path("profiles/", include("profiles.urls")),
+    # ... other paths
+    ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    ```
+
+    ### Access the URL in templates
+
+    On any model instance, a `FileField` or `ImageField` exposes a `.url` property that returns the browser-accessible URL:
+
+    ```html filename="templates/profiles/user_profiles.html"
+    {% for profile in profiles %}
+    <li>
+        <img src="{{ profile.image.url }}" alt="User profile image" />
+    </li>
+    {% endfor %}
+    ```
+
+    <Callout type="error">
+        Use `.url` (the HTTP URL), **not** `.path` (the filesystem path). The browser cannot access filesystem paths directly.
+    </Callout>
+
+</Steps>
+
+---
+
+## Listing Profiles with ListView
+
+```python filename="profiles/views.py"
+from django.views.generic import ListView
+from .models import UserProfile
+
+class ProfilesView(ListView):
+model = UserProfile
+template_name = "profiles/user_profiles.html"
+context_object_name = "profiles"
+```
+
+Register the URL:
+
+```python filename="profiles/urls.py"
+from django.urls import path
+from .views import CreateProfileView, ProfilesView
+
+urlpatterns = [
+path("",     CreateProfileView.as_view(), name="create-profile"),
+path("list/", ProfilesView.as_view(),     name="profiles-list"),
+]
+```
+
+Visit `/profiles/list/` to see all uploaded images rendered.
+
+---
+
+## Full File Structure
+
+<FileTree>
+    <FileTree.Folder name="my_project" defaultOpen>
+        <FileTree.Folder name="my_project" defaultOpen>
+            <FileTree.File name="settings.py" />
+            <FileTree.File name="urls.py" />
+        </FileTree.Folder>
+        <FileTree.Folder name="profiles" defaultOpen>
+            <FileTree.File name="models.py" />
+            <FileTree.File name="views.py" />
+            <FileTree.File name="urls.py" />
+            <FileTree.Folder name="templates">
+                <FileTree.Folder name="profiles">
+                    <FileTree.File name="create_profile.html" />
+                    <FileTree.File name="user_profiles.html" />
+                </FileTree.Folder>
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.Folder name="uploads">
+            <FileTree.Folder name="images">
+                <FileTree.File name="me.jpg" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.File name="manage.py" />
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Summary
+
+<Callout type="info" emoji="✅">
+    **Key takeaways from this module:**
+</Callout>
+
+| Topic | What to remember |
+|---|---|
+| HTML form | Must have `method="POST"` and `enctype="multipart/form-data"` |
+| CSRF | Always include `{% csrf_token %}` in POST forms |
+| `request.FILES` | Separate from `request.POST`; keyed by the input's `name` attribute |
+| `FileField` | Stores any file type; only the path goes in the DB |
+| `ImageField` | Image-only variant; requires `pip install Pillow` |
+| `MEDIA_ROOT` | Filesystem path where uploaded files live |
+| `MEDIA_URL` | Public URL prefix for serving those files |
+| `static()` helper | Maps `MEDIA_URL` → `MEDIA_ROOT` in `urls.py`; must be in the **project-level** file |
+| `.url` vs `.path` | Use `.url` in templates; `.path` is for server-side Python only |
+| `CreateView` | Handles the full upload lifecycle with minimal code |

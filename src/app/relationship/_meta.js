@@ -1,7 +1,4 @@
 export default {
-    index: {
-        title: 'Overview',
-    },
     type: {
         title: 'Types of Relationships',
     },
@@ -12,7 +9,7 @@ export default {
         title: 'Django ORM',
     },
     lookups: {
-        title: 'Django ORM Relationship Lookups',
+        title: 'Lookups',
     },
     admin: {
         title: 'Django Admin Configuration',
