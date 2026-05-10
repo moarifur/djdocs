@@ -1,0 +1,233 @@
+---
+title: Updating Django Models
+description: A practical guide to evolving Django models — adding methods, validators, new fields, and keeping your database in sync with migrations.
+---
+
+import { Callout } from 'nextra/components'
+
+# Updating Django Models
+
+Django models are flexible — you can modify them at any time by adding fields, validators, and custom methods. This guide walks through the key patterns for evolving your models and keeping your database in sync.
+
+---
+
+## Adding Methods to Models
+
+Beyond fields, you can add regular Python methods to your model classes. A good practice is to place **data-specific business logic** directly inside the model.
+
+### Overriding `__str__`
+
+One of the most common and useful methods to override is `__str__`. This is a standard Python dunder method that controls how an instance is represented as a string — for example, when printed in the console or the Django admin.
+
+```python
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    rating = models.IntegerField()
+
+    def __str__(self):
+        return f"{self.title} ({self.rating})"
+```
+
+- The method must **return a string**.
+- Use `self` to access instance field values.
+- After adding this, restart the Django shell — you'll see readable output when querying objects.
+
+<Callout>
+    Adding or changing methods does **not** require running migrations. Methods don't affect the database schema.
+</Callout>
+
+---
+
+## Adding Validators to Fields
+
+To enforce constraints on field values (e.g., rating must be between 1 and 5), use Django's built-in validators.
+
+```python
+from django.core.validators import MinValueValidator, MaxValueValidator
+
+class Book(models.Model):
+    rating = models.IntegerField(
+        validators=[
+            MinValueValidator(1),
+            MaxValueValidator(5),
+        ]
+    )
+```
+
+Validators run **before data is saved** to the database. You can also write custom validators — a validator is simply a function that receives a value and raises a `ValidationError` if the value is invalid.
+
+---
+
+## Adding New Fields
+
+You can add new fields to an existing model at any time:
+
+```python
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    rating = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    author = models.CharField(max_length=100, null=True)
+    is_bestselling = models.BooleanField(default=False)
+```
+
+### Handling Existing Data
+
+When you add a non-nullable field to a model that already has rows in the database, Django will prompt you to decide how to handle those existing records:
+
+| Option | Description |
+|--------|-------------|
+| **Provide a one-off default** | Enter a temporary default value applied to existing rows during migration |
+| **Quit and update the model** | Go back and set `null=True`, `blank=True`, or `default=...` on the field |
+
+---
+
+## `null`, `blank`, and `default`
+
+| Option | Effect |
+|--------|--------|
+| `null=True` | Allows the database column to store a SQL `NULL` value |
+| `blank=True` | Allows the field to be submitted as empty in forms and validation |
+| `default=<value>` | Sets a fallback value when no value is provided |
+
+```python
+# Allow NULL in the database for existing rows
+author = models.CharField(max_length=100, null=True)
+
+# Provide a default for a boolean field
+is_bestselling = models.BooleanField(default=False)
+```
+
+<Callout type="warning">
+    Avoid using `null=True` on `CharField` and `TextField` if possible. It creates two possible "empty" states: `NULL` and `""`. Use `blank=True` instead when you only need to allow empty form submissions.
+</Callout>
+
+### `blank` vs `null` in Depth
+
+These two options are related but operate at different layers of your application.
+
+**`blank=True` — Form validation behavior**
+
+`blank=True` controls whether a field is **required during input**. It allows a field to be left empty when submitting a form or running validation. It has no effect on what is stored in the database.
+
+```python
+class MyModel(models.Model):
+    description = models.CharField(max_length=255, blank=True)
+```
+
+**`null=True` — Database storage behavior**
+
+When a field is allowed to be blank and no value is provided, Django still needs to store *something* in the database. What gets stored depends on the field type:
+
+| Field Type | What gets stored (without `null=True`) |
+|---|---|
+| `CharField`, `EmailField`, and other text fields | An empty string `""` |
+| `DateField`, `IntegerField`, and other non-text fields | ❌ Error — empty string is the wrong type |
+
+For non-text fields, an empty string is not a valid value. `null=True` instructs Django to store SQL's special `NULL` value instead.
+
+```python
+class MyModel(models.Model):
+    birth_date = models.DateField(blank=True, null=True)
+    age = models.IntegerField(blank=True, null=True)
+```
+
+<Callout>
+    By default, Django does **not** allow `NULL` values in database columns. You must explicitly opt in with `null=True`.
+</Callout>
+
+### When to Use Each
+
+```python
+# Text field — blank=True is enough; empty string "" is stored
+name = models.CharField(max_length=100, blank=True)
+
+# Non-text field — needs both, or Django throws an error when saving
+scheduled_at = models.DateTimeField(blank=True, null=True)
+rating = models.FloatField(blank=True, null=True)
+```
+
+<Callout type="warning">
+    For non-text fields like dates or numbers, omitting `null=True` when `blank=True` is set will cause Django to raise an error when saving a record with no value.
+</Callout>
+
+A useful mental model:
+
+- **`blank`** → about *entering* data (form/validation layer)
+- **`null`** → about *storing* data (database layer)
+
+---
+
+## Running Migrations
+
+Whenever you change the **structure** of a model (add, remove, or modify fields), you must create and apply migrations.
+
+### Step 1 — Create the migration
+
+```bash
+python manage.py makemigrations
+```
+
+This generates a new migration file describing the changes Django will apply to the database.
+
+### Step 2 — Apply the migration
+
+```bash
+python manage.py migrate
+```
+
+This executes the migration and updates the actual database table.
+
+<Callout>
+    You do **not** need to run migrations after adding methods. Only schema changes — field additions, modifications, and removals — require migrations.
+</Callout>
+
+### Migration Dependencies
+
+Each migration file records a dependency on the previous one. This allows Django to track migration order and supports rolling back to earlier states if needed.
+
+---
+
+## Verifying Changes in the Shell
+
+After running migrations, you can verify the updated schema using Django's interactive shell:
+
+```bash
+python manage.py shell
+```
+
+```python
+from book_outlet.models import Book
+
+books = Book.objects.all()
+book = books[1]
+
+print(book.author)         # None (null, since no author was set)
+print(book.is_bestselling) # False (default value)
+print(book.rating)         # The rating stored in the database
+```
+
+Since you're working with a persistent database, data saved in previous sessions remains available — no need to recreate it each time you open the shell.
+
+---
+
+## Summary
+
+### When Migrations Are Required
+
+| Change Type | Requires Migration? |
+|-------------|---------------------|
+| Add / remove / modify a field | ✅ Yes |
+| Add validators to a field | ✅ Yes |
+| Add a method (`__str__`, etc.) | ❌ No |
+| Override a Python dunder method | ❌ No |
+
+### `blank` vs `null` at a Glance
+
+| Option | Layer | Effect |
+|--------|-------|--------|
+| `blank=True` | Form / Validation | Field may be left empty on input |
+| `null=True` | Database | `NULL` is stored when no value is provided |
+
+For **text-based fields** (`CharField`, `EmailField`, etc.), `blank=True` alone is sufficient — Django stores an empty string `""`. For **all other field types**, pair it with `null=True` to avoid errors at the database level.

@@ -1,0 +1,729 @@
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Django Crash Course
+
+A complete overview of Django's core features — from installation to forms, models, and the admin interface — built around a real **Meetups** project.
+
+<Callout type="info">
+    This guide is a standalone Django summary. Whether you're brand new to Django or revisiting the essentials, all the key concepts are covered here in one place.
+</Callout>
+
+---
+
+## What is Django?
+
+Django is a **Python web framework** that follows a "Batteries Included" philosophy — it ships with everything you typically need to build a production-ready website: request handling, database access, user authentication, file uploads, an admin panel, and more.
+
+<Callout emoji="⚙️">
+    **Batteries Included** means Django gives you robust, built-in solutions for the hard parts — so you can focus on your app's core business logic instead of reinventing the wheel.
+</Callout>
+
+Django is not a toy framework. It is used in production by companies serving millions of users. It requires **Python 3.x** and basic knowledge of HTML/CSS to get started.
+
+### Prerequisites
+
+- Basic Python (variables, functions, classes, imports)
+- Basic HTML & CSS awareness
+- No prior Django knowledge required
+
+---
+
+## Installation & Project Setup
+
+<Steps>
+
+    ### Install Django
+
+    Open a terminal (optionally inside a virtual environment) and run:
+
+    ```bash
+    pip install Django
+    # or, if you have both Python 2 and 3:
+    python3 -m pip install Django
+    ```
+
+    ### Create a new project
+
+    ```bash
+    django-admin startproject my_project
+    ```
+
+    This scaffolds a new folder. Open it in your editor of choice (VS Code with the Python + Pylance extensions is recommended).
+
+    ### Understand the project structure
+
+    ```
+    my_project/
+    ├── manage.py          ← CLI entry point for Django commands
+    └── my_project/        ← project configuration package
+    ├── settings.py    ← all project-wide settings
+    ├── urls.py        ← root URL routing
+    ├── wsgi.py        ← deployment (ignore for now)
+    └── asgi.py        ← deployment (ignore for now)
+    ```
+
+    ### Run the development server
+
+    ```bash
+    python manage.py runserver
+    ```
+
+    Visit `http://localhost:8000` in your browser. Stop the server any time with `Ctrl + C`.
+
+</Steps>
+
+<Callout type="warning">
+    `wsgi.py` and `asgi.py` are for deployment only. Leave them alone until you're ready to ship your project to production.
+</Callout>
+
+---
+
+## Django Apps
+
+A Django **project** is made up of one or more **apps** — modular Python packages, each responsible for a slice of your website's functionality.
+
+<Callout emoji="🧩">
+    Think of apps as self-contained modules. An online shop might have separate apps for products, the shopping cart, customer accounts, and order history.
+</Callout>
+
+### Creating an app
+
+```bash
+python manage.py startapp meetups
+```
+
+This generates a `meetups/` folder inside your project root:
+
+<FileTree>
+    <FileTree.Folder name="my_project" defaultOpen>
+        <FileTree.File name="manage.py" />
+        <FileTree.Folder name="my_project">
+            <FileTree.File name="settings.py" />
+            <FileTree.File name="urls.py" />
+        </FileTree.Folder>
+        <FileTree.Folder name="meetups" defaultOpen>
+            <FileTree.File name="admin.py" />
+            <FileTree.File name="apps.py" />
+            <FileTree.File name="models.py" />
+            <FileTree.File name="views.py" />
+            <FileTree.File name="urls.py" />
+            <FileTree.Folder name="migrations">
+                <FileTree.File name="__init__.py" />
+            </FileTree.Folder>
+            <FileTree.Folder name="templates">
+                <FileTree.Folder name="meetups">
+                    <FileTree.File name="index.html" />
+                </FileTree.Folder>
+            </FileTree.Folder>
+            <FileTree.Folder name="static">
+                <FileTree.Folder name="meetups">
+                    <FileTree.Folder name="styles">
+                        <FileTree.File name="base.css" />
+                    </FileTree.Folder>
+                </FileTree.Folder>
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+### Register the app
+
+Add the app name to `INSTALLED_APPS` in `settings.py`:
+
+```python filename="my_project/settings.py"
+INSTALLED_APPS = [
+    # ... default Django apps ...
+    'meetups',
+]
+```
+
+<Callout type="warning">
+    This step is required for Django to discover your app's models, templates, and static files. Don't skip it.
+</Callout>
+
+---
+
+## URLs & Views
+
+URLs and views are the two core building blocks that determine what happens when a user visits a page.
+
+### Writing a view
+
+A view is a Python function that receives a request and returns a response.
+
+```python filename="meetups/views.py"
+from django.shortcuts import render
+
+def index(request):
+    return render(request, 'meetups/index.html')
+```
+
+<Callout type="info">
+    `render()` takes the request, a template path (relative to the `templates/` folder), and an optional context dictionary. It returns an HTTP response with rendered HTML.
+</Callout>
+
+### Wiring up URLs
+
+**Step 1 — App-level `urls.py`** (create this file):
+
+```python filename="meetups/urls.py"
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('meetups/', views.index, name='all-meetups'),
+]
+```
+
+**Step 2 — Project-level `urls.py`** (connect the app):
+
+```python filename="my_project/urls.py"
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('meetups.urls')),
+]
+```
+
+<Callout emoji="🔗">
+    **Important:** Pass the view function *without* calling it — write `views.index`, not `views.index()`. Django calls it for you when a matching request comes in.
+</Callout>
+
+### Dynamic URL segments
+
+Use angle brackets to capture variable parts of a URL:
+
+```python filename="meetups/urls.py"
+urlpatterns = [
+    path('meetups/', views.index, name='all-meetups'),
+    path('meetups/<slug:meetup_slug>/', views.meetup_detail, name='meetup-detail'),
+]
+```
+
+The `slug:` converter enforces slug format. The captured value is passed to the view as a keyword argument:
+
+```python filename="meetups/views.py"
+def meetup_detail(request, meetup_slug):
+    # meetup_slug holds the value from the URL
+    ...
+```
+
+### Generating URLs in templates
+
+Use the `{% url %}` tag instead of hardcoding paths. This keeps your links correct even if you rename a URL:
+
+```html
+<a href="{% url 'meetup-detail' meetup_item.slug %}">More Details</a>
+```
+
+---
+
+## Templates
+
+Templates are HTML files with special Django Template Language (DTL) syntax for injecting dynamic data.
+
+### Template folder convention
+
+Place templates in `<app>/templates/<app>/` — the nested folder prevents name collisions across multiple apps when Django merges all template directories.
+
+### Rendering a template from a view
+
+Pass a context dictionary as the third argument to `render()`:
+
+```python filename="meetups/views.py"
+def index(request):
+    meetups = [
+        {'title': 'A First Meetup', 'location': 'New York', 'slug': 'a-first-meetup'},
+        {'title': 'A Second Meetup', 'location': 'Paris', 'slug': 'a-second-meetup'},
+    ]
+    return render(request, 'meetups/index.html', {'meetups': meetups})
+```
+
+### Django Template Language features
+
+<Tabs items={['Interpolation', 'If / Else', 'For Loop']}>
+    <Tabs.Tab>
+        Output a variable with double curly braces. Use dot notation to access dictionary keys, list indices, or object attributes:
+
+        ```html
+        <h2>{{ meetup.title }}</h2>
+        <p>{{ meetups.0.title }}</p>  {# first item in list #}
+        ```
+    </Tabs.Tab>
+
+    <Tabs.Tab>
+        Conditional blocks use `{% if %}`, `{% else %}`, and `{% endif %}`. Unlike Python, indentation does not matter — you must explicitly close every block:
+
+        ```html
+        {% if meetups %}
+        <p>We have meetups!</p>
+        {% else %}
+        <p>No meetups found.</p>
+        {% endif %}
+        ```
+    </Tabs.Tab>
+
+    <Tabs.Tab>
+        Loop through a list with `{% for %}` and `{% endfor %}`:
+
+        ```html
+        {% for meetup in meetups %}
+        <li>{{ meetup.title }} — {{ meetup.location }}</li>
+        {% endfor %}
+        ```
+    </Tabs.Tab>
+</Tabs>
+
+<Callout type="info">
+    In the Django Template Language, methods are called **without parentheses**. For example, `{{ form.as_ul }}` not `{{ form.as_ul() }}`.
+</Callout>
+
+---
+
+## Static Files
+
+CSS, JavaScript, and static images are managed separately from templates.
+
+### Folder structure
+
+Create a `static/<appname>/` folder inside your app — the same double-nesting strategy as templates:
+
+```
+meetups/static/meetups/styles/base.css
+```
+
+### Loading static files in a template
+
+```html
+{% load static %}
+
+<link rel="stylesheet" href="{% static 'meetups/styles/base.css' %}">
+```
+
+<Callout emoji="💡">
+    The `{% static %}` tag generates the correct URL at runtime. You must add `{% load static %}` at the top of any template that uses it.
+</Callout>
+
+---
+
+## Template Inheritance
+
+Avoid duplicating HTML across pages by defining a base template with named blocks that child templates can fill in.
+
+### Base template
+
+```html filename="meetups/templates/meetups/base/base.html"
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{% block title %}My Meetups{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'meetups/styles/base.css' %}">
+  {% block site_css %}{% endblock %}
+</head>
+<body>
+  <header id="main-header">
+    <nav><a href="/meetups/" id="main-logo">DjangoMeetups</a></nav>
+    <h1>{% block main_heading %}{% endblock %}</h1>
+    {% block header_content %}{% endblock %}
+  </header>
+  <main>
+    {% block body %}{% endblock %}
+  </main>
+</body>
+</html>
+```
+
+### Child template
+
+```html filename="meetups/templates/meetups/index.html"
+{% extends 'meetups/base/base.html' %}
+{% load static %}
+
+{% block title %}All Meetups{% endblock %}
+
+{% block site_css %}
+  <link rel="stylesheet" href="{% static 'meetups/styles/all-meetups.css' %}">
+{% endblock %}
+
+{% block main_heading %}We got great meetups coming up!{% endblock %}
+
+{% block body %}
+  <section>
+    <ul>
+      {% for meetup in meetups %}
+        {% include 'meetups/includes/meetup-item.html' with title=meetup.title location=meetup.location slug=meetup.slug %}
+      {% endfor %}
+    </ul>
+  </section>
+{% endblock %}
+```
+
+<Callout type="tip">
+    Use `{% include %}` with `with` to pass specific variables to a reusable snippet. This makes partials self-contained and easier to reuse across multiple templates.
+</Callout>
+
+---
+
+## Data & Models
+
+Django includes a built-in ORM. Define Python classes to describe your data — Django handles the SQL automatically.
+
+### Defining a model
+
+```python filename="meetups/models.py"
+from django.db import models
+
+class Location(models.Model):
+    name = models.CharField(max_length=200)
+    address = models.CharField(max_length=300)
+
+    def __str__(self):
+        return f'{self.name} ({self.address})'
+
+
+class Participant(models.Model):
+    email = models.EmailField(unique=True)
+
+    def __str__(self):
+        return self.email
+
+
+class Meetup(models.Model):
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(unique=True)
+    description = models.TextField()
+    image = models.ImageField(upload_to='images')
+    organizer_email = models.EmailField()
+    date = models.DateField()
+
+    # Relations
+    location = models.ForeignKey(Location, on_delete=models.CASCADE)
+    participants = models.ManyToManyField(Participant, blank=True)
+
+    def __str__(self):
+        return f'{self.title} - {self.slug}'
+```
+
+### Common field types
+
+| Field | Use |
+|-------|-----|
+| `CharField(max_length=N)` | Short text (required max length) |
+| `TextField()` | Long text, no length limit |
+| `SlugField(unique=True)` | URL-friendly identifier |
+| `EmailField()` | Text validated as an email address |
+| `DateField()` | A date (YYYY-MM-DD) |
+| `ImageField(upload_to=...)` | File upload; stores path in DB |
+| `ForeignKey(Model, on_delete=...)` | One-to-many relation |
+| `ManyToManyField(Model)` | Many-to-many relation |
+
+### Database relations
+
+<Tabs items={['One-to-Many', 'Many-to-Many']}>
+    <Tabs.Tab>
+        One location can belong to many meetups, but each meetup has only one location:
+
+        ```python
+        location = models.ForeignKey(Location, on_delete=models.CASCADE)
+        ```
+
+        `on_delete=CASCADE` means if the location is deleted, all related meetups are deleted too. Alternatives include `SET_NULL` (requires `null=True`).
+    </Tabs.Tab>
+
+    <Tabs.Tab>
+        One meetup can have many participants, and one participant can join many meetups:
+
+        ```python
+        participants = models.ManyToManyField(Participant, blank=True)
+        ```
+
+        `blank=True` allows the field to be empty in forms — a new meetup doesn't need participants yet. Django automatically creates an intermediate join table behind the scenes.
+    </Tabs.Tab>
+</Tabs>
+
+### Running migrations
+
+Every time you add or change a model, run:
+
+```bash
+python manage.py makemigrations   # generate migration files
+python manage.py migrate          # apply them to the database
+```
+
+<Callout type="warning">
+    Never edit migration files manually. Always regenerate them with `makemigrations` after changing `models.py`.
+</Callout>
+
+### Image uploads — extra setup
+
+The `ImageField` requires the **Pillow** package and two settings:
+
+```bash
+pip install Pillow
+```
+
+```python filename="my_project/settings.py"
+MEDIA_ROOT = BASE_DIR / 'uploads'
+MEDIA_URL = '/files/'
+```
+
+```python filename="my_project/urls.py"
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [
+    ...
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
+
+<Callout type="info">
+    `MEDIA_ROOT` is where uploaded files are stored on disk. `MEDIA_URL` is the URL prefix browsers use to request them. The `static()` call wires them together during development.
+</Callout>
+
+---
+
+## Querying Data
+
+Use the `objects` manager on any model class to read from the database — no SQL required.
+
+```python filename="meetups/views.py"
+from .models import Meetup
+
+def index(request):
+    meetups = Meetup.objects.all()
+    return render(request, 'meetups/index.html', {'meetups': meetups})
+
+def meetup_detail(request, meetup_slug):
+    try:
+        meetup = Meetup.objects.get(slug=meetup_slug)
+        return render(request, 'meetups/meetup-detail.html', {
+            'meetup': meetup,
+            'meetup_found': True,
+        })
+    except:
+        return render(request, 'meetups/meetup-detail.html', {
+            'meetup_found': False,
+        })
+```
+
+### Common query methods
+
+| Method | Result |
+|--------|--------|
+| `Model.objects.all()` | All records |
+| `Model.objects.get(field=value)` | Single record (raises exception if not found) |
+| `Model.objects.filter(field=value)` | Queryset matching condition |
+| `Model.objects.get_or_create(field=value)` | Tuple: `(instance, was_created)` |
+
+### Accessing related data in templates
+
+Django's ORM follows relations automatically — just chain with dots:
+
+```html
+{{ meetup.location.name }}
+{{ meetup.location.address }}
+{{ meetup.image.url }}
+```
+
+---
+
+## The Admin Interface
+
+Django ships with a fully functional admin dashboard at `/admin/`.
+
+### Create a superuser
+
+```bash
+python manage.py createsuperuser
+```
+
+Follow the prompts to set a username, email, and password. Then start the server and log in at `http://localhost:8000/admin/`.
+
+### Registering models
+
+```python filename="meetups/admin.py"
+from django.contrib import admin
+from .models import Meetup, Location, Participant
+
+admin.site.register(Location)
+admin.site.register(Participant)
+admin.site.register(Meetup)
+```
+
+### Customizing the admin
+
+Create a `ModelAdmin` subclass to control display, filtering, and slug auto-population:
+
+```python filename="meetups/admin.py"
+from django.contrib import admin
+from .models import Meetup, Location, Participant
+
+class MeetupAdmin(admin.ModelAdmin):
+    list_display = ('title', 'date', 'location')
+    list_filter = ('location', 'date')
+    prepopulated_fields = {'slug': ('title',)}
+
+admin.site.register(Meetup, MeetupAdmin)
+admin.site.register(Location)
+admin.site.register(Participant)
+```
+
+<Callout emoji="✨">
+    `prepopulated_fields` uses JavaScript to auto-fill the `slug` as you type a title — no more typos in slugs. Django automatically knows to format it in slug style because the field is a `SlugField`.
+</Callout>
+
+Control how model instances appear in the list by overriding `__str__` in the model class:
+
+```python
+def __str__(self):
+    return f'{self.title} - {self.slug}'
+```
+
+---
+
+## Forms
+
+Django can generate and validate forms automatically from your models, or you can define them manually.
+
+### ModelForm (quick approach)
+
+```python filename="meetups/forms.py"
+from django import forms
+from .models import Participant
+
+class RegistrationForm(forms.ModelForm):
+    class Meta:
+        model = Participant
+        fields = ['email']
+```
+
+### Standalone Form (more control)
+
+When you don't want to tie a form directly to model creation, inherit from `forms.Form` instead:
+
+```python filename="meetups/forms.py"
+from django import forms
+
+class RegistrationForm(forms.Form):
+    email = forms.EmailField(label='Your Email')
+```
+
+<Callout type="info">
+    A standalone `Form` gives you full control over how submitted data is saved. You can use `form.cleaned_data['email']` to access validated input after calling `form.is_valid()`.
+</Callout>
+
+### Rendering the form
+
+Pass the form to the template in your view:
+
+```python filename="meetups/views.py"
+from .forms import RegistrationForm
+
+def meetup_detail(request, meetup_slug):
+    form = RegistrationForm()
+    ...
+    return render(request, 'meetups/meetup-detail.html', {
+        'meetup': meetup,
+        'form': form,
+    })
+```
+
+In the template:
+
+```html
+<form method="POST" action="{% url 'meetup-detail' meetup.slug %}">
+  {% csrf_token %}
+  <ul>{{ form.as_ul }}</ul>
+  <div>
+    <button type="submit">Register</button>
+  </div>
+</form>
+```
+
+<Callout type="error">
+    **Always add `{% csrf_token %}` inside every POST form.** Without it Django will reject the submission. This token protects against Cross-Site Request Forgery attacks.
+</Callout>
+
+### Handling form submission
+
+```python filename="meetups/views.py"
+from django.shortcuts import render, redirect
+from .models import Meetup, Participant
+from .forms import RegistrationForm
+
+def meetup_detail(request, meetup_slug):
+    meetup = Meetup.objects.get(slug=meetup_slug)
+
+    if request.method == 'GET':
+        form = RegistrationForm()
+    else:
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            user_email = form.cleaned_data['email']
+            participant, _ = Participant.objects.get_or_create(email=user_email)
+            meetup.participants.add(participant)
+            return redirect('confirm-registration', meetup_slug=meetup_slug)
+
+    return render(request, 'meetups/meetup-detail.html', {
+        'meetup': meetup,
+        'form': form,
+    })
+```
+
+<Callout type="tip">
+    When `is_valid()` fails, Django annotates the form object with error messages. Re-rendering the same template with that form object automatically shows validation errors and preserves the user's input — no extra code needed.
+</Callout>
+
+### Redirecting after success
+
+```python
+from django.shortcuts import redirect
+
+return redirect('confirm-registration', meetup_slug=meetup_slug)
+```
+
+Use `get_or_create` instead of `save()` when a participant may already exist in the database — this prevents duplicate-entry errors:
+
+```python
+participant, was_created = Participant.objects.get_or_create(email=user_email)
+```
+
+---
+
+## Root URL Redirect
+
+If you want `localhost:8000/` to redirect users to `/meetups/` instead of showing a 404:
+
+```python filename="my_project/urls.py"
+from django.contrib import admin
+from django.urls import path, include
+from django.views.generic.base import RedirectView
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', RedirectView.as_view(url='/meetups/')),
+    path('meetups/', include('meetups.urls')),
+]
+```
+
+---
+
+## Key Concepts Summary
+
+| Concept | Where it lives | What it does |
+|---------|---------------|--------------|
+| **View** | `views.py` | Python function: receives request, returns response |
+| **URL** | `urls.py` | Maps a path pattern to a view |
+| **Template** | `templates/<app>/` | HTML with DTL for dynamic content |
+| **Static files** | `static/<app>/` | CSS, JS, images |
+| **Model** | `models.py` | Python class → database table |
+| **Migration** | `migrations/` | Auto-generated DB instructions |
+| **Form** | `forms.py` | Validates and processes user input |
+| **Admin** | `admin.py` | Registers models with the built-in dashboard |
+
+<Callout type="tip">
+    The development loop in Django is: edit a model → run `makemigrations` & `migrate` → register in `admin.py` → write a view → wire up a URL → create a template. Repeat.
+</Callout>

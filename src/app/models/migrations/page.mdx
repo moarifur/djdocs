@@ -1,0 +1,150 @@
+# Django Migrations & Database Setup
+
+Understanding how Django connects your models to a real database using migrations.
+
+---
+
+## Overview
+
+When you define a model in Django, it doesn't automatically create a database table. You need to go through **two explicit steps** to make that happen:
+
+1. **Register your app** in the project settings
+2. **Create and run migrations** to update the database
+
+import { Callout } from 'nextra/components'
+
+<Callout type="info">
+    Migrations are reusable, version-controlled instructions that tell Django how to create or update database tables. Think of them as a changelog for your database schema.
+</Callout>
+
+---
+
+## Step 1 — Register Your App
+
+Django won't pick up your models unless it knows your app exists. Open your project's `settings.py` and add your app to `INSTALLED_APPS`:
+
+```python filename="settings.py"
+INSTALLED_APPS = [
+    # ... built-in apps
+    'book_outlet',  # 👈 Add your app here
+]
+```
+
+Once registered, Django will automatically discover models defined inside that app.
+
+<Callout type="warning">
+    Skipping this step is a common mistake. Without it, Django won't find your models — and `makemigrations` will produce no output for your app.
+</Callout>
+
+---
+
+## Step 2 — Create Migrations
+
+Navigate to your **project root** (not the app folder) and run:
+
+```bash
+python manage.py makemigrations
+```
+
+This command scans your models and generates migration files inside the `migrations/` folder of the relevant app. For example, for a fresh app you'll see:
+
+```
+book_outlet/
+└── migrations/
+    └── 0001_initial.py   ✅ auto-generated
+```
+
+The file contains Python code that describes what Django should do against the database — but **it hasn't done it yet**.
+
+<Callout>
+    You should never need to manually edit migration files. Work on your `models.py` instead, then re-run `makemigrations` to let Django generate updated files for you.
+</Callout>
+
+---
+
+## Step 3 — Apply Migrations
+
+To actually write the changes to the database, run:
+
+```bash
+python manage.py migrate
+```
+
+This tells Django to look through all `migrations/` folders across all installed apps, find any migrations that haven't been applied yet, and execute them.
+
+<Callout type="info">
+    The first time you run `migrate`, you'll see output for Django's **built-in apps** too (sessions, auth, admin, etc.). This is expected — they also need database tables to function correctly.
+</Callout>
+
+---
+
+## What a Migration File Looks Like
+
+A generated migration is just a Python class. Here's a simplified version of `0001_initial.py`:
+
+```python filename="book_outlet/migrations/0001_initial.py"
+from django.db import migrations, models
+
+class Migration(migrations.Migration):
+
+    initial = True  # Marks this as the very first migration
+
+    dependencies = []
+
+    operations = [
+        migrations.CreateModel(
+            name='Book',
+            fields=[
+                ('id', models.AutoField(primary_key=True)),  # Auto-created by Django
+                ('title', models.CharField(max_length=50)),
+                ('rating', models.IntegerField()),
+            ],
+        ),
+    ]
+```
+
+Key things to note:
+
+- `initial = True` tells Django this is the first migration for this app
+- `id` is **automatically added** by Django as a primary key — you don't define it
+- The `primary_key=True` flag enforces uniqueness and enables efficient querying
+
+---
+
+## The Two-Step Workflow
+
+Whenever you add or modify a model, always run both commands in sequence:
+
+```bash
+# 1. Generate migration files based on model changes
+python manage.py makemigrations
+
+# 2. Apply those migrations to the database
+python manage.py migrate
+```
+
+<Callout type="warning">
+    Running only `makemigrations` is not enough — the database won't be updated until you also run `migrate`.
+</Callout>
+
+---
+
+## Database File (SQLite)
+
+By default, Django uses **SQLite** and stores everything in a single file (usually `db.sqlite3`) at your project root. After running `migrate`, this file will contain all the tables defined by your migrations.
+
+<Callout>
+    SQLite database files are binary and can't be opened as plain text. To inspect your database, use a tool like [DB Browser for SQLite](https://sqlitebrowser.org/) or the Django admin panel.
+</Callout>
+
+---
+
+## Summary
+
+| Step | Command | What it does |
+|------|---------|--------------|
+| Register app | Edit `settings.py` | Makes Django aware of your app and models |
+| Create migrations | `python manage.py makemigrations` | Generates migration files from your models |
+| Apply migrations | `python manage.py migrate` | Executes migrations and updates the database |
+
+Once migrations are applied, your database is ready and you can start inserting and querying data.

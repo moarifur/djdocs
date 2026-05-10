@@ -1,0 +1,53 @@
+# Types of Relationships
+
+In real-world applications, data rarely exists in isolation. A **data relationship** describes how two entities are connected. Before writing any model code, you need to understand which relationship type fits your data.
+
+Django supports three types.
+
+---
+
+## One-to-Many
+
+One record in entity A can relate to **many** records in entity B, but each record in entity B belongs to **only one** record in entity A.
+
+**Example:** An author can write many books, but each book has a single author.
+
+> J.K. Rowling wrote multiple Harry Potter books as well as unrelated titles — but each individual book has exactly one author.
+
+This is the most common relationship type and appears in virtually every project.
+
+---
+
+## One-to-One
+
+One record in entity A relates to **exactly one** record in entity B, and vice versa.
+
+**Example:** An author has one address, and that address belongs to that author alone.
+
+Less common than one-to-many, but useful for separating optional or sensitive data from a core model.
+
+---
+
+## Many-to-Many
+
+Multiple records in entity A can relate to **multiple** records in entity B.
+
+**Example:** A book can be published in many countries, and a country can publish many books.
+
+| Perspective         | Relationship |
+|---------------------|--------------|
+| One book → countries | One to Many  |
+| One country → books  | One to Many  |
+| Combined            | **Many to Many** |
+
+---
+
+## Summary
+
+| Type          | Description                          | Example              |
+|---------------|--------------------------------------|----------------------|
+| One-to-Many   | One record maps to many others       | Author → Books       |
+| One-to-One    | Each record maps to exactly one other| Author ↔ Address     |
+| Many-to-Many  | Many records map to many others      | Books ↔ Countries    |
+
+One-to-many is present in almost every project. Many-to-many is also common. One-to-one is used selectively, depending on your data model.

@@ -1,0 +1,282 @@
+---
+title: Template Inheritance
+description: Learn how to use Django's template inheritance system to define a base layout once and extend it across all your templates using the block and extends tags.
+---
+
+import { Callout, Steps, FileTree, Tabs } from 'nextra/components'
+
+# Template Inheritance
+
+As your project grows, you'll quickly notice that every HTML template shares the same core skeleton — `<!DOCTYPE html>`, `<head>`, `<body>`, navigation, footer. Repeating this in every file creates duplication that's hard to maintain.
+
+**Template inheritance** solves this. You define the shared structure once in a base template, mark the parts that will vary as named **blocks**, and then **extend** that base from your individual templates — injecting only the content that's unique to each page.
+
+---
+
+## How It Works
+
+The system relies on two tags working together:
+
+| Tag | Where it's used | What it does |
+|---|---|---|
+| `{% block name %}...{% endblock %}` | Base template | Defines a named placeholder that child templates can fill |
+| `{% extends 'base.html' %}` | Child template | Declares that this template inherits from a base template |
+
+```
+base.html          index.html            challenge.html
+──────────         ──────────            ──────────────
+{% block           {% extends %}         {% extends %}
+  page_title %}    {% block              {% block
+{% block             page_title %}         page_title %}
+  content %}       {% block                ...
+                     content %}          {% block
+                     ...                   content %}
+                                           ...
+```
+
+<Callout type="info">
+    All DTL — including `{% block %}` and `{% extends %}` — is evaluated on the server. The browser receives only the final, fully rendered HTML with no trace of template syntax.
+</Callout>
+
+---
+
+## Setting Up the Base Template
+
+### File location
+
+A base template that's shared across multiple apps belongs at the **project level**, not inside any individual app.
+
+<FileTree>
+    <FileTree.Folder name="my_project" defaultOpen>
+        <FileTree.Folder name="templates" defaultOpen>
+            <FileTree.File name="base.html" />
+        </FileTree.Folder>
+        <FileTree.Folder name="challenges">
+            <FileTree.Folder name="templates">
+                <FileTree.Folder name="challenges">
+                    <FileTree.File name="index.html" />
+                    <FileTree.File name="challenge.html" />
+                </FileTree.Folder>
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.File name="settings.py" />
+    </FileTree.Folder>
+</FileTree>
+
+<Callout type="warning">
+    Django won't automatically look for templates in the project-level `templates/` folder. You need to register it in `settings.py` first — see the configuration step below.
+</Callout>
+
+### Register the folder in `settings.py`
+
+Open your project's `settings.py` and add the project-level templates directory to the `DIRS` list inside `TEMPLATES`:
+
+```python filename="settings.py"
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [
+            BASE_DIR / "templates",  # Add this line
+        ],
+        "APP_DIRS": True,
+        # ...
+    }
+]
+```
+
+This tells Django to also search the root `templates/` folder when resolving template names, so `"base.html"` in an `{% extends %}` tag will correctly resolve to `templates/base.html`.
+
+### Create `base.html`
+
+Define the shared structure and use `{% block %}` to mark the areas that child templates will fill in:
+
+```django filename="templates/base.html"
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block page_title %}My Challenges{% endblock %}</title>
+  </head>
+  <body>
+    {% block content %}{% endblock %}
+  </body>
+</html>
+```
+
+Two blocks are defined here:
+
+- **`page_title`** — injected inside `<title>`. Has a default fallback value of `My Challenges`.
+- **`content`** — injected inside `<body>`. Empty by default.
+
+<Callout type="default">
+    You can define as many blocks as you need. Common ones include `page_title`, `content`, `extra_head` (for page-specific CSS), and `extra_scripts` (for page-specific JS).
+</Callout>
+
+---
+
+## Extending the Base Template
+
+### Syntax rules
+
+- `{% extends %}` **must be the first line** of the child template — nothing before it.
+- Only content inside `{% block %}` tags is rendered. Any content outside a block in a child template is ignored.
+
+### Example — `index.html`
+
+```django filename="challenges/templates/challenges/index.html"
+{% extends 'base.html' %}
+
+{% block page_title %}All Challenges{% endblock %}
+
+{% block content %}
+  <ul>
+    {% for month in months %}
+      <li>
+        <a href="{% url 'month-challenge' month %}">
+          {{ month | title }}
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}
+```
+
+### Example — `challenge.html`
+
+```django filename="challenges/templates/challenges/challenge.html"
+{% extends 'base.html' %}
+
+{% block page_title %}{{ month | title }} Challenge{% endblock %}
+
+{% block content %}
+  <h1>The {{ month | title }} Challenge</h1>
+
+  {% if text %}
+    <p>{{ text }}</p>
+  {% else %}
+    <p>There is no challenge for {{ month | title }} yet.</p>
+  {% endif %}
+{% endblock %}
+```
+
+---
+
+## Block Default Values
+
+If a child template does not override a block, Django uses the content defined in the base template as a fallback.
+
+```django filename="templates/base.html"
+<title>{% block page_title %}My Challenges{% endblock %}</title>
+```
+
+| Child template overrides `page_title`? | Rendered `<title>` |
+|---|---|
+| Yes — `{% block page_title %}January{% endblock %}` | `January` |
+| No — block not present in child | `My Challenges` (fallback) |
+
+---
+
+## Before & After
+
+<Tabs items={['Without inheritance', 'With inheritance']}>
+    <Tabs.Tab>
+        Every template repeats the full HTML skeleton:
+
+        ```django filename="index.html"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>All Challenges</title>
+        </head>
+        <body>
+        <ul>...</ul>
+        </body>
+        </html>
+        ```
+
+        ```django filename="challenge.html"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>January Challenge</title>
+        </head>
+        <body>
+        <h1>...</h1>
+        <p>...</p>
+        </body>
+        </html>
+        ```
+
+        Updating the `<head>` or adding a nav bar means editing every single file.
+    </Tabs.Tab>
+    <Tabs.Tab>
+        The skeleton lives in one place. Child templates contain only what's unique:
+
+        ```django filename="index.html"
+        {% extends 'base.html' %}
+
+        {% block page_title %}All Challenges{% endblock %}
+
+        {% block content %}
+        <ul>...</ul>
+        {% endblock %}
+        ```
+
+        ```django filename="challenge.html"
+        {% extends 'base.html' %}
+
+        {% block page_title %}January Challenge{% endblock %}
+
+        {% block content %}
+        <h1>...</h1>
+        <p>...</p>
+        {% endblock %}
+        ```
+
+        Updating the `<head>` or adding a nav bar only requires editing `base.html`.
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Step-by-Step Setup
+
+<Steps>
+
+    ### Create the project-level templates folder
+
+    Create a `templates/` folder at the root of your Django project (next to `manage.py`).
+
+    ### Add `base.html` to the new folder
+
+    Define your shared HTML structure with named `{% block %}` placeholders for the parts that will differ per page.
+
+    ### Register the folder in `settings.py`
+
+    Add `BASE_DIR / "templates"` to the `DIRS` list inside `TEMPLATES` so Django can find `base.html`.
+
+    ### Update child templates
+
+    At the top of each child template, add `{% extends 'base.html' %}`. Remove the repeated HTML skeleton and wrap the page-specific content in the matching `{% block %}` tags.
+
+    ### Verify inheritance is working
+
+    Add a temporary element (like an `<h1>`) directly to `base.html`. If it appears on every page that extends it, inheritance is working correctly. Remove it once confirmed.
+
+</Steps>
+
+---
+
+## Summary
+
+| Tag | Syntax | Required closing tag |
+|---|---|---|
+| `block` | `{% block name %}...{% endblock %}` | Yes — `{% endblock %}` |
+| `extends` | `{% extends 'base.html' %}` | No |
+
+<Callout type="default">
+    Template inheritance is one of the most powerful features of Django's template system. Even with just two templates, it's worth setting up — it pays off immediately when you need to add shared navigation, a footer, or page-wide styles.
+</Callout>
+
+For the full reference, see the [official Django template inheritance documentation](https://docs.djangoproject.com/en/stable/ref/templates/language/#template-inheritance).

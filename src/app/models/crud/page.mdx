@@ -1,0 +1,259 @@
+# Django ORM: CRUD Operations
+
+Django's ORM (Object-Relational Mapper) lets you interact with your database using Python objects — no raw SQL needed. This guide covers **updating**, **deleting**, **creating**, and **querying** data through Django models.
+
+---
+
+## Updating Data
+
+### Step 1: Retrieve the Object
+
+Before you can update a record, fetch it from the database first. Use `Book.objects.all()` with an index as a quick way to grab a specific entry:
+
+```python
+harry_potter = Book.objects.all()[0]
+print(harry_potter.title)  # Verify you have the right book
+
+lord_of_the_rings = Book.objects.all()[1]
+print(lord_of_the_rings.title)
+```
+
+> **Note:** Accessing by index position works for simple cases, but it's not ideal for production code. You'll want to use `.get()` or `.filter()` for reliable lookups (covered below).
+
+### Step 2: Modify the Object's Fields
+
+Django model instances are regular Python objects. Use dot notation to update any field:
+
+```python
+harry_potter.author = "J.K. Rowling"
+harry_potter.is_bestselling = True
+```
+
+At this point, **nothing has been written to the database yet** — the changes only exist in memory.
+
+### Step 3: Save to the Database
+
+Call `.save()` to persist the changes:
+
+```python
+harry_potter.save()
+```
+
+import { Callout } from 'nextra/components'
+
+<Callout type="info">
+    **How `.save()` works:**
+    Django is smart about this. If the object **already exists** in the database, `.save()` will issue an `UPDATE` query. If it's a **new object** that hasn't been saved before, `.save()` will `INSERT` a new row. Same method, two behaviors.
+</Callout>
+
+### Step 4: Verify the Update
+
+Re-query the database to confirm the change was persisted:
+
+```python
+print(Book.objects.all()[0].author)  # "J.K. Rowling"
+```
+
+### Full Example
+
+```python
+# Update Harry Potter
+harry_potter = Book.objects.all()[0]
+harry_potter.author = "J.K. Rowling"
+harry_potter.is_bestselling = True
+harry_potter.save()
+
+# Update Lord of the Rings
+lord_of_the_rings = Book.objects.all()[1]
+lord_of_the_rings.author = "J.R.R. Tolkien"
+lord_of_the_rings.is_bestselling = True
+lord_of_the_rings.save()
+
+# Verify
+print(Book.objects.all()[1].author)        # J.R.R. Tolkien
+print(Book.objects.all()[1].is_bestselling) # True
+```
+
+---
+
+## Deleting Data
+
+To delete a record, retrieve the object and call `.delete()` on it:
+
+```python
+harry_potter = Book.objects.all()[0]
+harry_potter.delete()
+```
+
+Django returns a summary of what was deleted:
+
+```python
+(1, {'myapp.Book': 1})
+# 1 item deleted, from the Book model
+```
+
+Verify the deletion:
+
+```python
+Book.objects.all()
+# <QuerySet [<Book: Lord of the Rings>]>
+```
+
+<Callout type="warning">
+    **IDs are never reused.** If you delete a record with `id=1`, that ID is gone permanently. Django will not reassign it to a future record.
+</Callout>
+
+---
+
+## Creating Data
+
+### Method 1: Instantiate and Save
+
+```python
+book = Book(title="Harry Potter", rating=5, author="J.K. Rowling", is_bestselling=True)
+book.save()
+```
+
+### Method 2: `objects.create()` (Shorthand)
+
+Skip the intermediate step — this hits the database immediately:
+
+```python
+Book.objects.create(
+    title="Harry Potter",
+    rating=5,
+    author="J.K. Rowling",
+    is_bestselling=True
+)
+
+Book.objects.create(
+    title="My Story",
+    rating=2,
+    author="Max",
+    is_bestselling=False
+)
+
+Book.objects.create(
+    title="Some Random Book",
+    rating=1,
+    author="Random Dude",
+    is_bestselling=False
+)
+```
+
+Both methods produce the same result. `objects.create()` is more concise when you don't need a reference to the object after creation.
+
+---
+
+## Querying Data
+
+### Get All Records
+
+```python
+Book.objects.all()
+# <QuerySet [<Book: Lord of the Rings>, <Book: Harry Potter>, <Book: My Story>, <Book: Some Random Book>]>
+```
+
+### Get a Single Record with `.get()`
+
+`.get()` returns **exactly one** object matching the given condition:
+
+```python
+# By ID (guaranteed unique)
+Book.objects.get(id=3)
+
+# By title
+Book.objects.get(title="My Story")
+
+# By a field value (only if it's unique)
+Book.objects.get(rating=5)
+```
+
+<Callout type="error">
+    **`.get()` raises an exception if more than one record matches.** Always use a condition that uniquely identifies a single record — `id` is the safest choice. Using a non-unique field like `is_bestselling=True` will raise a `MultipleObjectsReturned` error.
+</Callout>
+
+### Filter Multiple Records with `.filter()`
+
+`.filter()` returns a `QuerySet` (a list) of all matching records:
+
+```python
+# All bestselling books
+Book.objects.filter(is_bestselling=True)
+# <QuerySet [<Book: Lord of the Rings>, <Book: Harry Potter>]>
+
+# Non-bestsellers
+Book.objects.filter(is_bestselling=False)
+
+# Chain multiple conditions (AND logic)
+Book.objects.filter(is_bestselling=False, rating=2)
+# <QuerySet [<Book: My Story>]>
+```
+
+### Field Lookups (Comparison Operators)
+
+For comparisons beyond simple equality, Django provides **field lookup modifiers** appended with double underscores (`__`):
+
+```python
+# Lower than
+Book.objects.filter(rating__lt=3)
+
+# Lower than or equal
+Book.objects.filter(rating__lte=3)
+
+# Greater than
+Book.objects.filter(rating__gt=3)
+
+# Greater than or equal
+Book.objects.filter(rating__gte=3)
+
+# Contains (partial string match)
+Book.objects.filter(title__contains="Story")
+
+# Case-insensitive contains
+Book.objects.filter(title__icontains="story")
+```
+
+<Callout type="info">
+    **SQLite note:** When using SQLite (the default Django development database), `contains` is already case-insensitive. On other databases like PostgreSQL or MySQL, use `icontains` if you want case-insensitive matching.
+</Callout>
+
+### Combining Lookups
+
+You can combine multiple conditions in a single `.filter()` call:
+
+```python
+# Books with rating < 3 AND title contains "Story"
+Book.objects.filter(rating__lt=3, title__contains="Story")
+# <QuerySet [<Book: My Story>]>
+```
+
+### Field Lookup Reference
+
+| Lookup | Description | Example |
+|--------|-------------|---------|
+| `exact` | Exact match (default) | `rating__exact=5` |
+| `lt` | Less than | `rating__lt=3` |
+| `lte` | Less than or equal | `rating__lte=3` |
+| `gt` | Greater than | `rating__gt=1` |
+| `gte` | Greater than or equal | `rating__gte=2` |
+| `contains` | Case-sensitive substring | `title__contains="Harry"` |
+| `icontains` | Case-insensitive substring | `title__icontains="harry"` |
+| `startswith` | Starts with string | `title__startswith="Lord"` |
+| `endswith` | Ends with string | `title__endswith="Rings"` |
+| `in` | Value in list | `rating__in=[1, 2, 3]` |
+
+For a full list, see the [official Django field lookup reference](https://docs.djangoproject.com/en/stable/ref/models/querysets/#field-lookups).
+
+---
+
+## Quick Reference
+
+| Operation | Code |
+|-----------|------|
+| Get all records | `Book.objects.all()` |
+| Get one record | `Book.objects.get(id=1)` |
+| Filter records | `Book.objects.filter(is_bestselling=True)` |
+| Create (shorthand) | `Book.objects.create(title="...", ...)` |
+| Update a field | `book.field = value` then `book.save()` |
+| Delete a record | `book.delete()` |

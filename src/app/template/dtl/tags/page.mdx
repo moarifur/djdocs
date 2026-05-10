@@ -1,0 +1,385 @@
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Template Tags
+
+Tags are DTL constructs that go beyond simple output. They control logic and flow in your templates. Tags use a different syntax from filters — single curly braces with percentage signs:
+
+```django
+{% tag_name %}
+```
+
+### Syntax Quick Reference
+
+| Syntax | Purpose | Example |
+|---|---|---|
+| `{{ }}` | Output a variable | `{{ month }}` |
+| `{% %}` | Execute a tag (logic/control) | `{% for month in months %}` |
+
+### The `for` Tag
+
+The `for` tag loops through any iterable passed from the view. It's one of the most essential DTL features — nearly every Django project needs it.
+
+```django
+{% for item in collection %}
+  <!-- repeated content -->
+{% endfor %}
+```
+
+<Callout type="warning">
+    Unlike Python, DTL does **not** use indentation to define scope. You must explicitly close every block tag. Forgetting `{% endfor %}` will cause a template error.
+</Callout>
+
+#### Step 1 — Pass data from the view
+
+```python filename="views.py"
+def index(request):
+    months = [
+        "january", "february", "march", "april",
+        "may", "june", "july", "august",
+        "september", "october", "november", "december"
+    ]
+    return render(request, "challenges/index.html", {
+        "months": months
+    })
+```
+
+The key name in the context dictionary (`"months"`) must match the name used in the template.
+
+#### Step 2 — Loop in the template
+
+```django filename="challenges/index.html"
+<ul>
+  {% for month in months %}
+    <li>
+      <a href="#">{{ month | title }}</a>
+    </li>
+  {% endfor %}
+</ul>
+```
+
+#### Variable scope
+
+The loop variable (e.g. `month`) is **only accessible inside** the `{% for %}...{% endfor %}` block. Referencing it outside will silently produce nothing.
+
+```django
+{% for month in months %}
+  {{ month }}  ✓  accessible here
+{% endfor %}
+
+{{ month }}  ✗  not accessible here
+```
+
+### Template File Structure
+
+<Callout type="default">
+    Always place templates inside a sub-folder named after the app. This prevents naming collisions when multiple apps each have an `index.html`.
+</Callout>
+
+<FileTree>
+    <FileTree.Folder name="challenges" defaultOpen>
+        <FileTree.Folder name="templates" defaultOpen>
+            <FileTree.Folder name="challenges" defaultOpen>
+                <FileTree.File name="index.html" />
+                <FileTree.File name="challenge.html" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+When rendering, reference the sub-folder path:
+
+```python
+return render(request, "challenges/index.html", context)
+```
+
+---
+
+## Dynamic URLs with the `url` Tag
+
+Hard-coding paths directly in templates is fragile. If a URL pattern changes, you'd need to update every template manually.
+
+```django
+<!-- Fragile — breaks if the URL pattern changes -->
+<a href="/challenges/{{ month }}">{{ month | title }}</a>
+```
+
+The `{% url %}` tag solves this. It's the template equivalent of Django's `reverse()` function — it generates URLs dynamically from named URL patterns.
+
+### Syntax
+
+```django
+{% url 'url-name' argument1 argument2 %}
+```
+
+Or using keyword arguments:
+
+```django
+{% url 'url-name' param_name=value %}
+```
+
+### Example
+
+Given this URL pattern in `urls.py`:
+
+```python filename="urls.py"
+path("<str:month>", views.monthly_challenge, name="month-challenge"),
+```
+
+Use the `url` tag in the template like this:
+
+```django filename="challenges/index.html"
+<ul>
+    {% for month in months %}
+        <li>
+            <a
+                href="{% url "month-challenge" month %}"
+                target='_blank'
+            >
+                {{ month|title }}
+            </a>
+        </li>
+    {% endfor %}
+</ul>
+```
+
+With keyword arguments (useful when there are multiple dynamic segments):
+
+```django
+<a href="{% url 'month-challenge' month=month %}">
+  {{ month | title }}
+</a>
+```
+
+### Hard-coded vs `url` tag
+
+| | Hard-coded path | `{% url %}` tag |
+|---|---|---|
+| Example | `href="/challenges/{{ month }}"` | `href="{% url 'month-challenge' month %}"` |
+| URL change impact | Must update every template manually | Updates automatically everywhere |
+| Recommended | No | **Yes** |
+
+<Callout type="info">
+    Unlike `{% for %}`, the `{% url %}` tag does **not** need a closing tag. It produces a single URL string and has no block scope.
+</Callout>
+
+---
+
+## The `if` Tag
+
+The `if` tag lets you render content conditionally inside a template. It works similarly to a Python `if` statement, but uses the DTL block syntax.
+
+### Basic Syntax
+
+```django
+{% if condition %}
+  <!-- rendered when condition is true -->
+{% endif %}
+```
+
+With `else`:
+
+```django
+{% if condition %}
+  <!-- rendered when condition is true -->
+{% else %}
+  <!-- rendered when condition is false -->
+{% endif %}
+```
+
+With `elif`:
+
+```django
+{% if condition_one %}
+  <!-- rendered when condition_one is true -->
+{% elif condition_two %}
+  <!-- rendered when condition_two is true -->
+{% else %}
+  <!-- fallback -->
+{% endif %}
+```
+
+<Callout type="warning">
+    Just like `{% for %}`, the `{% if %}` tag must be explicitly closed with `{% endif %}`. DTL does not use indentation to define scope — the closing tag is required.
+</Callout>
+
+### Supported Operators
+
+The `if` tag supports the same comparison and logical operators you'd use in regular Python:
+
+| Operator | Description | Example |
+|---|---|---|
+| `==` | Equal to | `{% if status == "active" %}` |
+| `!=` | Not equal to | `{% if role != "admin" %}` |
+| `<` | Less than | `{% if count < 10 %}` |
+| `>` | Greater than | `{% if score > 100 %}` |
+| `<=` | Less than or equal | `{% if age <= 18 %}` |
+| `>=` | Greater than or equal | `{% if price >= 50 %}` |
+| `and` | Both conditions true | `{% if a and b %}` |
+| `or` | Either condition true | `{% if a or b %}` |
+| `not` | Negates the condition | `{% if not is_hidden %}` |
+| `in` | Value exists in collection | `{% if month in available %}` |
+| `not in` | Value absent from collection | `{% if month not in skipped %}` |
+| `is` | Identity check | `{% if text is not None %}` |
+
+---
+
+## Practical Example — Conditional Challenge Text
+
+### The Problem
+
+Say you have a monthly challenge app, but not every month has a challenge set. For December, the challenge value is `None`. Without conditional logic, the template would display `None` to the user — which is not ideal.
+
+```python filename="views.py"
+monthly_challenges = {
+    "january": "Eat no meat for the entire month!",
+    "february": "Walk for at least 20 minutes every day!",
+    # ... other months
+    "december": None,  # No challenge set for December
+}
+```
+
+### The Solution
+
+Use the `{% if %}` tag in the template to check whether a challenge exists, and render a fallback message if it doesn't.
+
+<Steps>
+
+    ### Check the value in the view
+
+    Pass the challenge text to the template via context. The value will either be a string or `None`.
+
+    ```python filename="views.py"
+    def monthly_challenge(request, month):
+    challenge_text = monthly_challenges.get(month)
+    return render(request, "challenges/challenge.html", {
+    "month": month,
+    "text": challenge_text,
+})
+    ```
+
+    ### Add conditional logic in the template
+
+    ```django filename="challenges/challenge.html"
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>{{ month | title }} Challenge</title>
+    </head>
+    <body>
+    <h1>The {{ month | title }} Challenge</h1>
+
+    {% if text is not None %}
+    <p>{{ text }}</p>
+    {% else %}
+    <p>There is no challenge for {{ month | title }} yet.</p>
+    {% endif %}
+    </body>
+    </html>
+    ```
+
+    ### Verify the output
+
+    - Visiting `/challenges/january/` → shows the challenge text
+    - Visiting `/challenges/december/` → shows the fallback message
+
+</Steps>
+
+### Result
+
+<Tabs items={['With a challenge', 'Without a challenge (None)']}>
+    <Tabs.Tab>
+        ```html
+        <!-- Rendered HTML for January -->
+        <h1>The January Challenge</h1>
+        <p>Eat no meat for the entire month!</p>
+        ```
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```html
+        <!-- Rendered HTML for December -->
+        <h1>The December Challenge</h1>
+        <p>There is no challenge for December yet.</p>
+        ```
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Common Patterns
+
+### Checking for a truthy value
+
+If a value is `None`, an empty string, `0`, or an empty list, Django treats it as falsy. You can use a shorthand check:
+
+```django
+{% if text %}
+  <p>{{ text }}</p>
+{% else %}
+  <p>No challenge available.</p>
+{% endif %}
+```
+
+This is equivalent to `if text is not None and text != ""` for most cases.
+
+### Checking with `not`
+
+```django
+{% if not text %}
+  <p>No challenge set for this month.</p>
+{% endif %}
+```
+
+### Combining conditions
+
+```django
+{% if text and month == "january" %}
+  <p>🎉 New Year challenge: {{ text }}</p>
+{% elif text %}
+  <p>{{ text }}</p>
+{% else %}
+  <p>No challenge yet.</p>
+{% endif %}
+```
+
+---
+
+## Summary
+
+| Tag | Syntax | Notes |
+|---|---|---|
+| `if` | `{% if condition %}...{% endif %}` | Always requires `{% endif %}` |
+| `else` | `{% else %}` | Optional fallback inside an `if` block |
+| `elif` | `{% elif condition %}` | Optional additional condition |
+
+<Callout type="default">
+    The `{% if %}` tag is one of the most frequently used tags in Django templates. Combined with the `{% for %}` tag and filters, it gives you the core tools needed to build dynamic, data-driven pages entirely within your templates.
+</Callout>
+
+For the complete `if` tag reference including all supported operators, see the [official Django documentation](https://docs.djangoproject.com/en/stable/ref/templates/builtins/#if).
+
+---
+
+# Conditional Rendering & Server-Side Rendering
+
+This guide covers two important concepts: how Django's Template Language (DTL) is processed on the server before reaching the browser, and how to use the `{% if %}` tag to render content conditionally based on your data.
+
+---
+
+## How DTL Works — Server-Side Rendering
+
+Before diving into the `if` tag, it's worth understanding a fundamental concept about how Django templates work.
+
+When you inspect the page source in your browser, you will **never** see any DTL syntax — no `{{ }}`, no `{% %}`, no filters, no tags. What you see is clean, finished HTML.
+
+This is because all DTL is **parsed and evaluated on the server** before the response is sent. The client (browser) only ever receives the final rendered HTML document.
+
+```
+Django View  →  Template Engine  →  Rendered HTML  →  Browser
+               (evaluates DTL)      (no DTL left)
+```
+
+<Callout type="info">
+    This is a key difference from client-side JavaScript frameworks. With DTL, all template logic runs on the server — the browser has no knowledge of it.
+</Callout>
+
+---

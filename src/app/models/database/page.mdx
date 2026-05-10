@@ -1,0 +1,119 @@
+# Understanding Databases
+
+Before working with a database in your project, it's important to understand the two main approaches to storing data — and why you'd pick one over the other.
+
+---
+
+## Two Philosophies
+
+There are two dominant database philosophies:
+
+- **SQL** (also called relational databases)
+- **NoSQL** (also called non-relational databases)
+
+These represent fundamentally different ways of structuring and querying data. Both are valid — the right choice depends on your use case.
+
+import { Callout } from 'nextra/components'
+
+<Callout type="info">
+    There are more than two types of databases in reality, but SQL and NoSQL are by far the most widely used and important to understand.
+</Callout>
+
+---
+
+## SQL Databases
+
+SQL databases store data in **tables**. A table has named columns, and each record is stored as a row.
+
+### Example: A Users Table
+
+| ID  | Name | Age |
+| --- | ---- | --- |
+| 1   | Max  | 31  |
+| 2   | Manu | 32  |
+
+### Querying Data
+
+You can query tables using structured conditions. For example, to get all names where age is 32 or older:
+
+```sql
+SELECT name FROM users WHERE age >= 32;
+-- Returns: Manu
+```
+
+SQL databases also support **relations** — connecting multiple tables together to model complex data.
+
+### Popular SQL Engines
+
+- MySQL
+- PostgreSQL
+- SQLite
+- Oracle SQL
+- Microsoft SQL Server
+
+---
+
+## NoSQL Databases
+
+NoSQL databases store data as **documents inside collections**. Instead of rows and columns, you get a list of self-contained objects — similar in appearance to dictionaries or JSON.
+
+### Example: A Users Collection
+
+```json
+{ id: 1, name: "Max", age: 31 }
+{ id: 2, name: "Manu", age: 32 }
+```
+
+### Schema Flexibility
+
+A key difference from SQL is that documents in the same collection **don't need to share the same fields**. Two documents can have completely different structures — there's no enforced schema across the collection.
+
+<Callout type="tip">
+    This flexibility makes NoSQL a good fit when your data structure is expected to evolve frequently or vary between records.
+</Callout>
+
+### Popular NoSQL Engines
+
+- MongoDB
+- Cassandra DB
+
+---
+
+## SQL vs NoSQL: Which Should You Use?
+
+For many web projects, **either approach works fine** and the choice often comes down to personal preference or team familiarity.
+
+That said, here are the key tradeoffs:
+
+| | SQL | NoSQL |
+| --- | --- | --- |
+| Data structure | Tables with fixed schema | Flexible documents |
+| Schema enforcement | Strict — all rows share columns | Optional — documents can vary |
+| Relations | Built-in, with joins | Manual or denormalized |
+| Best for | Structured, relational data | Flexible or rapidly-changing data |
+
+<Callout type="warning">
+    Neither is universally better. Evaluate based on how your data is structured and how it will be queried.
+</Callout>
+
+---
+
+## Using SQL with Django
+
+Django has **built-in, first-class support** for SQL databases — no extra packages required. NoSQL databases can be used with Django, but they require additional third-party libraries.
+
+For most Django projects, SQL is the natural choice. This course uses **SQLite** specifically, because:
+
+- It requires no separate server setup
+- It's bundled with Python
+- It's ideal for development and learning
+
+<Callout type="default">
+    SQLite is great to get started with. For production apps, you'd typically switch to PostgreSQL or MySQL.
+</Callout>
+
+---
+
+## Next Steps
+
+Now that you understand the two database philosophies, the next step is learning how to run queries against a SQL database and how Django's ORM maps Python code to those queries.

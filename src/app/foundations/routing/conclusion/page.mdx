@@ -1,0 +1,132 @@
+---
+title: URLs, Views & Core Concepts
+description: A structured reference guide for foundational Django concepts — URLs, views, dynamic routing, response types, and the reverse() function.
+---
+
+import { Callout, Steps, Tabs } from 'nextra/components'
+
+# URLs, Views & Core Concepts
+
+A structured reference for the foundational Django building blocks covered in this module.
+
+---
+
+## URLs and Views
+
+URLs and **routes** are two terms for the same concept — the different paths your application responds to (the part after the domain).
+
+```
+/              → home / index
+/posts         → post list
+/posts/some-id → specific post
+```
+
+For each path, you define a **view** — the logic that runs when that URL is visited. Views can be written as **functions** or as **classes** (covered later). Every view receives the incoming request and must return a response.
+
+---
+
+## URL Registration
+
+URLs are registered at the **app level** first, then linked into the **project-level** URL config using `include()`.
+
+```python filename="project/urls.py"
+from django.urls import path, include
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("challenges/", include("challenges.urls")),  # prefix → forwards to app URLs
+]
+```
+
+<Callout type="info">
+    The `"challenges/"` prefix acts as a filter — any request starting with `/challenges/` is forwarded to the `challenges` app's own `urls.py`.
+</Callout>
+
+---
+
+## Dynamic vs. Hard-Coded Path Segments
+
+| Type | Example | Use case |
+|---|---|---|
+| Hard-coded | `path("", views.index)` | Exact match only — e.g. the index/home route |
+| Dynamic | `path("<str:month>/", views.monthly_challenge)` | Captures any value and passes it to the view as a named argument |
+
+Dynamic segments let the same view function handle many different URLs, which is essential for building truly dynamic pages.
+
+---
+
+## View Functions
+
+A view receives the `request` object plus any dynamic URL segments captured from the path, runs whatever logic is needed, and returns a response.
+
+```python filename="challenges/views.py"
+def monthly_challenge(request, month):
+    # `month` is injected from the dynamic URL segment <str:month>
+    challenge_text = monthly_challenges[month]
+    return HttpResponse(challenge_text)
+```
+
+---
+
+## Response Types
+
+| Response class | Status | When to use |
+|---|---|---|
+| `HttpResponse` | 200 | Return content (text, HTML) successfully |
+| `HttpResponseRedirect` | 302 | Send the browser to a different URL |
+| `HttpResponseNotFound` | 404 | Resource doesn't exist or data is invalid |
+
+These three cover the most common cases you'll encounter in everyday Django development.
+
+---
+
+## The `reverse()` Function
+
+Instead of hardcoding URL strings, use `reverse()` to build them dynamically from a **named route**. This keeps your URLs maintainable — if the path changes, only `urls.py` needs updating.
+
+<Steps>
+
+    ### Name your route in `urls.py`
+
+    ```python filename="challenges/urls.py"
+    from django.urls import path
+    from . import views
+
+    urlpatterns = [
+    path("<str:month>/", views.monthly_challenge, name="month-challenge"),
+    ]
+    ```
+
+    ### Use `reverse()` in your view
+
+    ```python filename="challenges/views.py"
+    from django.urls import reverse
+    from django.http import HttpResponseRedirect
+
+    def redirect_to_march(request):
+    url = reverse("month-challenge", args=["march"])
+    # → "/challenges/march/"
+    return HttpResponseRedirect(url)
+    ```
+
+</Steps>
+
+### Common use cases for `reverse()`
+
+- **Redirects** — pass the result directly to `HttpResponseRedirect`
+- **HTML links** — embed the URL in a response when building an `<a href>` tag dynamically (e.g. in an index view)
+
+<Callout type="warning">
+    Avoid hardcoding URL strings like `"/challenges/march/"` in your views. If the URL structure ever changes, every hardcoded reference breaks. `reverse()` keeps your codebase resilient.
+</Callout>
+
+---
+
+## What's Coming Next
+
+These fundamentals underpin everything else in Django. Upcoming topics build directly on them:
+
+- Extracting data from incoming requests
+- Sending back real HTML using **templates** (HTML stored in separate files)
+- Talking to a **database**
+- Building views as **classes**

@@ -1,0 +1,154 @@
+import { Callout, FileTree, Tabs } from 'nextra/components'
+
+# Custom 404 Pages
+
+By default, Django shows a technical debug page for 404 errors during development. In production, you'll want a proper, styled error page. Django makes this straightforward.
+
+### Approach 1 — `render_to_string` (manual)
+
+You can render a template to a string and return it inside an `HttpResponseNotFound`:
+
+```python filename="views.py"
+from django.http import HttpResponseNotFound
+from django.template.loader import render_to_string
+
+def monthly_challenge(request, month):
+    # ...
+    if month not in monthly_challenges:
+        response_data = render_to_string("404.html")
+        return HttpResponseNotFound(response_data)
+```
+
+This works, but it requires manual wiring. There's a simpler built-in approach.
+
+### Approach 2 — `Http404` exception (recommended)
+
+Import `Http404` from `django.http` and raise it wherever a resource is not found. Django handles the rest automatically.
+
+```python filename="views.py"
+from django.http import Http404
+
+def monthly_challenge(request, month):
+    if month not in monthly_challenges:
+        raise Http404("This month is not supported.")
+
+    challenge_text = monthly_challenges[month]
+    return render(request, "challenges/challenge.html", {
+        "month": month,
+        "text": challenge_text,
+    })
+```
+
+When `Http404` is raised, Django automatically looks for a file named **`404.html`** in your registered template directories and serves it with a `404` status code.
+
+<Callout type="default">
+    Raising `Http404` is cleaner than manually constructing an `HttpResponseNotFound`. It separates the error signal from the response rendering — Django takes care of finding and serving your `404.html` automatically.
+</Callout>
+
+### Create `404.html`
+
+Place the file in your project-level `templates/` folder (the same one registered in `settings.py`). It must be named exactly `404.html`.
+
+```django filename="templates/404.html"
+{% extends 'base.html' %}
+
+{% block page_title %}Page Not Found{% endblock %}
+
+{% block content %}
+  <h1>Something went wrong.</h1>
+  <p>We could not find a matching page.</p>
+  <a href="{% url 'index' %}">Go back to All Challenges</a>
+{% endblock %}
+```
+
+Because it uses `{% extends %}`, it inherits all shared layout and styling automatically.
+
+<FileTree>
+    <FileTree.Folder name="templates" defaultOpen>
+        <FileTree.File name="base.html" />
+        <FileTree.File name="404.html" />
+    </FileTree.Folder>
+    <FileTree.Folder name="challenges">
+        <FileTree.Folder name="templates">
+            <FileTree.Folder name="challenges">
+                <FileTree.File name="index.html" />
+                <FileTree.File name="challenge.html" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Development vs Production
+
+<Callout type="warning">
+    Django only renders your custom `404.html` when `DEBUG = False` in `settings.py`. During development (`DEBUG = True`), Django shows its built-in debug error page instead to help you diagnose problems.
+</Callout>
+
+<Tabs items={['Development (DEBUG = True)', 'Production (DEBUG = False)']}>
+    <Tabs.Tab>
+        Django shows its own detailed debug page with a full traceback, request info, and settings. Your `404.html` is **not** rendered.
+
+        This is intentional — you need the extra information while building.
+    </Tabs.Tab>
+    <Tabs.Tab>
+        Django renders your `404.html` template and returns it with a `404` HTTP status code.
+
+        Never deploy with `DEBUG = True`. Set it to `False` for any production environment.
+    </Tabs.Tab>
+</Tabs>
+
+You can verify the status code is correct by checking the **Network tab** in your browser's developer tools — look for the `404` status code on the response.
+
+---
+
+
+### So when you change
+
+```python filename="myproject/myproject/settings.py"
+DEBUG = False
+```
+
+### It's gonna give you an error message
+
+```Terminal"
+CommandError: You must set settings.ALLOWED_HOSTS if DEBUG is False.
+```
+
+### So, in order to fix this issue, we've to do this
+
+```python filename="myproject/myproject/settings.py"
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+```
+<Callout type="default">
+    Now you're gonna see the content of custom 404.html file what you've created
+</Callout>
+
+## Why not `render()` for 404s?
+
+The `render()` shortcut always returns a `200 OK` response. For error pages, you need the correct HTTP status code to be sent alongside the HTML.
+
+| | `render()` | `Http404` (raise) |
+|---|---|---|
+| Status code sent | Always `200 OK` | `404 Not Found` |
+| Template lookup | Manual — you specify the path | Automatic — Django finds `404.html` |
+| Recommended for errors | No | **Yes** |
+
+---
+
+## Summary
+
+| Feature | Tag / Class | Closing tag |
+|---|---|---|
+| Include a partial | `{% include 'path/to/snippet.html' %}` | No |
+| Pass extra context to a partial | `{% include '...' with key="value" %}` | No |
+| Raise a 404 error | `raise Http404()` | N/A |
+
+<Callout type="default">
+    Together, **filters**, **the `for` tag**, **the `if` tag**, **template inheritance**, **includes**, and **404 handling** form the complete toolkit for building dynamic, well-structured Django templates — keeping all rendering logic in your templates and all business logic in your views.
+</Callout>
+
+For further reading, see the official Django documentation:
+- [Built-in template tags — `include`](https://docs.djangoproject.com/en/stable/ref/templates/builtins/#include)
+- [Customising error views](https://docs.djangoproject.com/en/stable/topics/http/views/#customizing-error-views)

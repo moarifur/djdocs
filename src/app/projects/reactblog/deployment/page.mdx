@@ -1,0 +1,143 @@
+import { Callout, Steps } from 'nextra/components'
+
+# Deployment
+
+This page covers deploying both the React client and Express API to a Linux VPS using **Hostinger**, **CloudPanel**, and **pm2**.
+
+<Callout type="info">
+    The steps below use Hostinger VPS with CloudPanel as the control panel. They apply equally to any Ubuntu/Debian VPS with CloudPanel installed.
+</Callout>
+
+---
+
+## Overview
+
+| Service | What it does |
+|---|---|
+| Hostinger VPS | The Linux server |
+| CloudPanel | Web-based server management (sites, SSL, SSH keys) |
+| pm2 | Process manager — keeps Node apps alive and restarts on crash |
+| MongoDB Atlas | Cloud-hosted database (add your server IP to the allowlist) |
+
+---
+
+## Steps
+
+<Steps>
+
+    ### Push both repos to GitHub
+
+    Make sure `.env` is in `.gitignore` for **both** `client/` and `backend/`.
+
+    ```bash
+    # client
+    cd client
+    echo ".env" >> .gitignore
+    git init && git add . && git commit -m "init"
+    git remote add origin <your-client-repo>
+    git push -u origin main
+
+    # backend
+    cd ../backend
+    echo ".env" >> .gitignore
+    echo "node_modules" >> .gitignore
+    git init && git add . && git commit -m "init"
+    git remote add origin <your-api-repo>
+    git push -u origin main
+    ```
+
+    ### Create VPS sites in CloudPanel
+
+    Create two **Node.js** sites:
+
+    - `blog-api.yourdomain.com` → port `3000`
+    - `blog.yourdomain.com` → port `5173`
+
+    Install SSL certificates for both via **CloudPanel → Actions → New Certificate**.
+
+    ### Connect via SSH and clone the API
+
+    ```bash
+    # Add your SSH public key under CloudPanel → SSH Keys first, then:
+    ssh root@<your-server-ip>
+
+    sudo su blog-api-user
+    cd ~/htdocs/blog-api.yourdomain.com
+    git clone <your-api-repo> .
+    npm install
+    ```
+
+    ### Create the production `.env` on the server
+
+    ```bash
+    nano .env
+    # Paste all production env vars, then Ctrl+X → Y → Enter
+    ```
+
+    Update `CLIENT_URL` to your production domain and `MONGO_URL` to your Atlas connection string. Also add your server IP to **MongoDB Atlas → Network Access**.
+
+    ### Install pm2 and start the API
+
+    <Callout type="warning">
+        pm2 does not accept `--env-file` the way Node does. Add `import 'dotenv/config'` at the very top of `index.js` so the `.env` file is loaded before pm2 executes your app.
+    </Callout>
+
+    ```bash
+    npm install -g pm2 dotenv
+    pm2 start index.js --name api --watch
+    pm2 save
+    ```
+
+    Make sure your `index.js` starts with:
+
+    ```js
+    import 'dotenv/config'
+    // … rest of your app
+    ```
+
+    ### Build and serve the React app
+
+    ```bash
+    sudo su blog-client-user
+    cd ~/htdocs/blog.yourdomain.com
+    git clone <your-client-repo> .
+        npm install -f
+        NODE_ENV=production npm run build
+        npm install -g pm2
+        pm2 serve dist 5173 --name client --spa --watch
+        pm2 save
+        ```
+
+</Steps>
+
+---
+
+## Useful pm2 Commands
+
+```bash
+pm2 list                 # show all processes
+pm2 logs api             # tail logs for the api process
+pm2 restart api          # restart after a code change
+pm2 delete client        # remove a process
+pm2 startup              # generate a startup script so pm2 survives reboots
+```
+
+---
+
+## Deploying Updates
+
+```bash
+# Pull latest code
+git pull origin main
+
+# API — restart the process
+pm2 restart api
+
+# Client — rebuild and let pm2 serve the new dist
+npm run build
+pm2 restart client
+```
+
+<Callout type="info" emoji="💡">
+    For zero-downtime deploys, consider adding a `deploy` script to `package.json` that runs `git pull && npm install && npm run build` in one command.
+</Callout>

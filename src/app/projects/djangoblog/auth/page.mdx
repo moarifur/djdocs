@@ -1,0 +1,208 @@
+import { Callout, Tabs } from 'nextra/components'
+
+# Authentication & Permissions
+
+## Authentication vs Authorization
+
+| Term | Meaning |
+|---|---|
+| **Authentication** | Verifies *who you are* — checking your identity (username + password) |
+| **Authorization** | Determines *what you can do* — permissions granted to your role |
+
+---
+
+## Django Crispy Forms Setup
+
+Install the packages:
+
+```bash
+pip install django-crispy-forms crispy-bootstrap4
+```
+
+Register in `settings.py`:
+
+```python
+INSTALLED_APPS = [
+    ...
+    'crispy_forms',
+    'crispy_bootstrap4',
+]
+CRISPY_TEMPLATE_PACK = 'bootstrap4'
+```
+
+Use in any template:
+
+```django
+{% load crispy_forms_tags %}
+{{ form|crispy }}
+```
+
+---
+
+## Registration
+
+Create `blog_main/forms.py`:
+
+```python
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
+
+class RegistrationForm(UserCreationForm):
+    class Meta:
+        model  = User
+        fields = ['email', 'username', 'password1', 'password2']
+```
+
+View in `blog_main/views.py`:
+
+```python
+from django.shortcuts import render, redirect
+from .forms import RegistrationForm
+
+def register(request):
+    if request.method == 'POST':
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('register')
+    else:
+        form = RegistrationForm()
+    return render(request, 'register.html', {'form': form})
+```
+
+Template `templates/register.html`:
+
+```django
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+  <h3 class="text-center">Register</h3>
+  <div style="width:500px; margin:auto">
+    <form method="post" action="{% url 'register' %}">
+      {% csrf_token %}
+      {{ form|crispy }}
+      <button type="submit" class="btn btn-warning">Submit</button>
+    </form>
+  </div>
+{% endblock %}
+```
+
+---
+
+## Login & Logout
+
+```python
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib import auth
+
+def login(request):
+    if request.method == 'POST':
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            username = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password')
+            user     = auth.authenticate(username=username, password=password)
+            if user is not None:
+                auth.login(request, user)
+                return redirect('dashboard')
+    else:
+        form = AuthenticationForm()
+    return render(request, 'login.html', {'form': form})
+
+
+def log_out(request):
+    auth.logout(request)
+    return redirect('home')
+```
+
+<Callout type="info">
+    The `user` object is automatically available in every template via Django's built-in `auth` context processor — you don't need to pass it manually. Use `user.is_authenticated` to conditionally show login/logout buttons.
+</Callout>
+
+Show login/logout state in `base.html`:
+
+```django
+{% if not user.is_authenticated %}
+  <a href="{% url 'login' %}">Login</a>
+  <a href="{% url 'register' %}">Register</a>
+{% else %}
+  <a href="{% url 'dashboard' %}">Dashboard</a>
+  <a href="{% url 'log_out' %}">Logout</a>
+{% endif %}
+```
+
+---
+
+## Protecting Views with `login_required`
+
+```python
+from django.contrib.auth.decorators import login_required
+
+@login_required(login_url='login')
+def dashboard(request):
+    ...
+```
+
+<Callout>
+    If an unauthenticated user visits a `@login_required` view, Django redirects them to the `login_url` automatically — no manual check needed.
+</Callout>
+
+---
+
+## Permissions & Groups
+
+Django auto-generates four permissions for **every** model you create:
+
+- `add_<model>`
+- `change_<model>`
+- `delete_<model>`
+- `view_<model>`
+
+### Roles in this project
+
+| Role | What they can do |
+|---|---|
+| **Super Admin** | Everything |
+| **Manager** | Manage users + all blog/category permissions |
+| **Editor** | Blog post & category CRUD only |
+
+### Creating a Manager group
+
+1. Go to **Django Admin → Groups → Add Group**
+2. Name it `manager`
+3. Select: `auth | user | Can add/change/delete/view user` + all blocks permissions
+4. Save and assign the group to manager users
+
+### Creating an Editor group
+
+Same steps, but only select blog post and category permissions — **no** user management permissions.
+
+<Callout type="tip">
+    Assigning a **group** to a user is much easier than setting permissions individually. If you hire 10 editors, just assign them to the `editor` group — one click, all permissions applied.
+</Callout>
+
+### Checking permissions in templates
+
+```django
+{# Show Users link only to managers #}
+{% if perms.auth.view_user %}
+  <a href="{% url 'users' %}">Users</a>
+{% endif %}
+```
+
+### Protecting pages from editors
+
+In `templates/dashboard/users.html`:
+
+```django
+{% if perms.auth.view_user %}
+  <!-- Table of users -->
+{% else %}
+  <h5>You do not have permission to view this page.</h5>
+{% endif %}
+```
+
+<Callout type="warning">
+    Hiding a link in the sidebar is **not enough** — you must also guard the actual template content. An editor who knows the URL can still visit it directly.
+</Callout>

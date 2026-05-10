@@ -1,0 +1,177 @@
+import { Callout, Steps } from 'nextra/components'
+
+# Deployment
+
+Deploy the Django blog to **Python Anywhere** — free for one web app, no credit card required.
+
+<Callout type="info">
+    Python Anywhere is chosen here for simplicity. For production-grade deployments with more control, consider AWS, DigitalOcean, or Linode with Docker and CI/CD.
+</Callout>
+
+---
+
+## Pre-Deployment Checklist
+
+Before pushing your final commit, take care of these three things.
+
+### 1. Update `requirements.txt`
+
+```bash
+pip freeze > requirements.txt
+```
+
+If you are on Python < 3.9, add a version marker for `backports.zoneinfo` so the server (Python 3.10) skips it:
+
+```
+backports.zoneinfo>=0.2.1; python_version < "3.9"
+```
+
+### 2. Remove `db.sqlite3` and `media/` from `.gitignore`
+
+Open `.gitignore` and delete (or comment out) these two lines:
+
+```
+# db.sqlite3    <-- remove this line
+# media/        <-- remove this line
+```
+
+This allows your existing data and uploaded images to be pushed to GitHub and pulled onto the server.
+
+### 3. Push everything to GitHub
+
+```bash
+git add -A
+git commit -m "Deployment"
+git push origin main
+```
+
+---
+
+## Deploying on Python Anywhere
+
+<Steps>
+
+    ### Create a Python Anywhere account
+
+    Go to [pythonanywhere.com](https://www.pythonanywhere.com) and sign up for a **Beginner (free)** account. Confirm your email before continuing.
+
+    ### Clone your repository
+
+    Open a **Bash console** on Python Anywhere and run:
+
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/django-blog.git
+    cd django-blog
+    ```
+
+    ### Create a virtual environment and install packages
+
+    ```bash
+    mkvirtualenv my-site-virtualenv --python=python3.10
+    pip install -r requirements.txt
+    ```
+
+    ### Create the Web App
+
+    In the Python Anywhere **Web** tab:
+
+    - Click **Add a new web app**
+    - Click **Next** → choose **Manual configuration** (not Django)
+    - Select **Python 3.10**
+    - Click **Next**
+
+    ### Configure source code and virtualenv
+
+    On the Web tab configuration page:
+
+    - **Source code**: `/home/YOUR_USERNAME/django-blog`
+    - **Virtualenv**: `/home/YOUR_USERNAME/.virtualenvs/my-site-virtualenv`
+
+    ### Configure static files
+
+    Still on the Web tab, under **Static Files**:
+
+    | URL | Directory |
+    |---|---|
+    | `/static/` | `/home/YOUR_USERNAME/django-blog/static` |
+
+    Then collect static files from the Bash console:
+
+    ```bash
+    python manage.py collectstatic
+    ```
+
+    ### Edit the WSGI file
+
+    Click the WSGI file link on the Web tab. Replace all its contents with:
+
+    ```python
+    import sys, os
+
+    path = '/home/YOUR_USERNAME/django-blog'
+    if path not in sys.path:
+    sys.path.insert(0, path)
+
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'blog_main.settings'
+
+    from django.core.wsgi import get_wsgi_application
+    application = get_wsgi_application()
+    ```
+
+    ### Update `settings.py`
+
+    Edit `blog_main/settings.py` via the **Files** tab:
+
+    ```python
+    DEBUG         = False
+    ALLOWED_HOSTS = ['YOUR_USERNAME.pythonanywhere.com']
+
+    # Fix template resolution on Python Anywhere
+    TEMPLATES = [{
+    'DIRS': ['/home/YOUR_USERNAME/django-blog/templates'],
+    ...
+}]
+    ```
+
+    ### Reload and visit your site
+
+    Click **Reload** on the Web tab. Your site is live at:
+
+    ```
+    https://YOUR_USERNAME.pythonanywhere.com
+    ```
+
+</Steps>
+
+---
+
+## Troubleshooting
+
+<Callout type="warning">
+    If you see a **500 Server Error**, temporarily set `DEBUG = True` to see the full traceback in the browser. Fix the issue, then set it back to `False`.
+</Callout>
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `DisallowedHost` error | Domain not in `ALLOWED_HOSTS` | Add your `.pythonanywhere.com` domain |
+| `TemplateDoesNotExist` | Relative template path doesn't resolve on server | Use absolute path in `TEMPLATES['DIRS']` |
+| Static files not loading | `collectstatic` not run, or URL/dir mismatch | Re-run `collectstatic` and check the Web tab config |
+| 500 after `DEBUG=False` | Any uncaught error | Temporarily enable `DEBUG=True`, read the traceback |
+
+---
+
+## Key Takeaways
+
+| Concept | What You Learned |
+|---|---|
+| **Models & ForeignKey** | Relational data: blog → category, blog → author, comment → blog |
+| **Slug** | SEO-friendly URLs generated with `slugify` + post ID for uniqueness |
+| **Context Processors** | Share data across all templates without repeating queries in each view |
+| **Template Inheritance** | `base.html` + `{% block content %}` eliminates copy-paste across pages |
+| **Model Forms** | Build forms from model fields; use `commit=False` to add custom data before saving |
+| **File Uploads** | `enctype="multipart/form-data"` on the form + `request.FILES` in the view |
+| **Authentication** | Django's built-in `auth.login`, `auth.logout`, `auth.authenticate` |
+| **Permissions & Groups** | Fine-grained access control with `perms.app.permission` in templates |
+| **login_required** | Decorator that redirects unauthenticated users from protected views |
+| **Q Objects** | OR-based database lookups for multi-field search |
+| **Deployment** | Python Anywhere: clone → virtualenv → collectstatic → WSGI → reload |

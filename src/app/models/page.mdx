@@ -1,0 +1,52 @@
+---
+title: Introduction to Databases & Django Models
+description: Why in-memory data isn't enough, and how Django models connect your app to a real database.
+---
+
+import { Callout } from 'nextra/components'
+
+# Introduction to Databases & Django Models
+
+## The problem with in-memory data
+
+Up to this point you may have managed all application data as Python variables — a list of monthly challenges, a dict of products, and so on. That works fine for learning, but it comes with serious drawbacks in any real application.
+
+<Callout type="warning">
+    Any changes made to in-memory data are **lost the moment you restart the Django development server**. Variables live only in RAM; when the process stops, they're gone.
+</Callout>
+
+There are three concrete problems with relying only on variables:
+
+1. **No persistence.** Data resets on every application restart.
+2. **Shared state.** All requests — and therefore all users — read and write the same global variable, which causes race conditions and accidental data leakage.
+3. **No query power.** Filtering, sorting, and paginating data requires you to write raw Python loops instead of leaning on an optimised query engine.
+
+## The solution: a database
+
+For data that must survive restarts and scale with real users, you store it in a **database**. A database gives you:
+
+- **Durable storage** — data is written to disk, not RAM.
+- **Isolation** — each request gets a consistent view of the data.
+- **Rich querying** — filter, sort, aggregate, and join without hand-rolling Python.
+
+Django ships with built-in support for relational databases (SQLite by default, with easy switching to PostgreSQL, MySQL, or MariaDB) and exposes them through a high-level Python API called the **ORM** (Object-Relational Mapper).
+
+## What you'll learn in this section
+
+This section walks through everything you need to persist data properly in a Django project:
+
+| Topic | What you'll cover |
+|---|---|
+| Data categories | Temporary, semi-persistent, and persistent data — and where each is stored |
+| Databases 101 | What a relational database is and which options Django supports |
+| SQL basics | The `SELECT`, `INSERT`, `UPDATE`, and `DELETE` syntax Django generates for you |
+| Django Models | Defining your data schema as Python classes |
+| ORM queries | `create()`, `filter()`, `get()`, `update()`, `delete()` and queryset chaining |
+
+<Callout type="info">
+    Semi-persistent data (sessions, cookies) is covered later in the course. This section focuses entirely on **persistent data stored in a database**.
+</Callout>
+
+## Next steps
+
+Continue to [Understanding Data Categories](/models/data) to see how to classify the data in your application before deciding where to store it.

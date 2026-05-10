@@ -1,0 +1,95 @@
+---
+title: Django ORM
+description: Create model instances, assign relations, and save them to the database using the Django shell.
+---
+
+import { Callout } from 'nextra/components'
+
+# Django ORM
+
+This guide covers creating objects, assigning relationships, and persisting data using the Django ORM — either in the shell or in your views. For querying across related models, see [Relationship Lookups](/lookups).
+
+---
+
+## Opening the Shell
+
+```bash
+python manage.py shell
+```
+
+Import the models you need:
+
+```python
+from book_outlet.models import Book, Author
+```
+
+---
+
+## Creating and Saving Objects
+
+Instantiating a model creates the object **in memory only**. Call `.save()` to write it to the database.
+
+```python
+jk_rowling = Author(first_name="J.K.", last_name="Rowling")
+jk_rowling.save()
+```
+
+Verify the save:
+
+```python
+Author.objects.all()
+# <QuerySet [<Author: J.K. Rowling>]>
+```
+
+---
+
+## Assigning a ForeignKey Relation
+
+Pass the related object directly when creating or updating a record. Django extracts and stores the correct foreign key ID automatically — you never manage IDs manually.
+
+```python
+hp1 = Book(
+    title="Harry Potter 1",
+    rating=5,
+    is_bestselling=True,
+    slug="harry-potter-1",
+    author=jk_rowling,      # Pass the object, not an ID
+)
+hp1.save()
+```
+
+<Callout type="warning">
+    Always call `.save()` on a related object **before** assigning it as a relation. Linking an unsaved instance raises a `ValueError`.
+</Callout>
+
+---
+
+## Accessing the Related Object
+
+Accessing a relation field on a saved instance automatically queries the related table and returns the full object:
+
+```python
+harry_potter = Book.objects.get(title="Harry Potter 1")
+
+harry_potter.author
+# <Author: J.K. Rowling>
+
+harry_potter.author.first_name
+# 'J.K.'
+```
+
+<Callout>
+    Under the hood, Django stores only the foreign key ID in the `books` table. When you access `.author`, it transparently queries the `authors` table and returns the full object.
+</Callout>
+
+---
+
+## Key Rules
+
+| Action | Code |
+|---|---|
+| Create an object (in memory) | `Model(field=value)` |
+| Save to database | `.save()` |
+| Assign a relation | Pass the Python object directly |
+| Access a related object | Dot notation — `book.author.first_name` |
+| Assigning relation doesn't hit the DB | Always call `.save()` afterward |

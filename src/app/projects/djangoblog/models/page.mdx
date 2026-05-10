@@ -1,0 +1,203 @@
+import { Callout } from 'nextra/components'
+
+# Models & Admin
+
+## Creating the Blocks App
+
+```bash
+python manage.py startapp blocks
+```
+
+Register it in `settings.py`:
+
+```python
+INSTALLED_APPS = [
+    ...
+    'blocks',
+]
+```
+
+---
+
+## Category Model
+
+In `blocks/models.py`:
+
+```python
+from django.db import models
+
+class Category(models.Model):
+    category_name = models.CharField(max_length=50, unique=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    updated_at    = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = 'Categories'
+
+    def __str__(self):
+        return self.category_name
+```
+
+<Callout>
+    The `__str__` method controls what you see in the admin list view. Without it, every row shows as `Category object (1)`.
+</Callout>
+
+---
+
+## Blog Post Model
+
+```python
+from django.contrib.auth.models import User
+
+class Blog(models.Model):
+    STATUS_CHOICES = (
+        ('draft',     'Draft'),
+        ('published', 'Published'),
+    )
+
+    title             = models.CharField(max_length=100)
+    slug              = models.SlugField(max_length=150, unique=True, blank=True)
+    category          = models.ForeignKey(Category, on_delete=models.CASCADE)
+    author            = models.ForeignKey(User, on_delete=models.CASCADE)
+    featured_image    = models.ImageField(upload_to='uploads/%Y/%m/%d/')
+    short_description = models.TextField(max_length=500)
+    blog_body         = models.TextField(max_length=2000)
+    status            = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    is_featured       = models.BooleanField(default=False)
+    created_at        = models.DateTimeField(auto_now_add=True)
+    updated_at        = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title
+```
+
+<Callout type="warning">
+    `ImageField` requires **Pillow**. Install it before running migrations:
+
+    ```bash
+    pip install pillow
+    ```
+</Callout>
+
+---
+
+## Comment Model
+
+```python
+class Comment(models.Model):
+    user       = models.ForeignKey(User, on_delete=models.CASCADE)
+    blog       = models.ForeignKey(Blog, on_delete=models.CASCADE)
+    comment    = models.TextField(max_length=250)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.comment
+```
+
+---
+
+## Apply Migrations
+
+Every time you create or modify a model, run:
+
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+
+---
+
+## Admin Configuration
+
+In `blocks/admin.py`:
+
+```python
+from django.contrib import admin
+from .models import Category, Blog, Comment
+
+class BlogAdmin(admin.ModelAdmin):
+    prepopulated_fields = {'slug': ('title',)}
+    list_display        = ('title', 'category', 'author', 'status', 'is_featured')
+    search_fields       = ('id', 'title', 'category__category_name', 'status')
+    list_editable       = ('is_featured',)
+
+admin.site.register(Category)
+admin.site.register(Blog, BlogAdmin)
+admin.site.register(Comment)
+```
+
+<Callout>
+    `prepopulated_fields` auto-generates the slug as you type the title — no need to type it manually.
+</Callout>
+
+<Callout type="info">
+    When searching by a ForeignKey field like `category`, you must traverse to its field using double underscores: `category__category_name`. Writing just `category` in `search_fields` will cause an error.
+</Callout>
+
+---
+
+## Foreign Key Relationships
+
+| Relationship | Rule |
+|---|---|
+| Category → Blog | One category can have **many** blog posts |
+| Blog → Category | Each blog belongs to **one** category |
+| User → Blog | One author can write **many** posts |
+| Blog → User | Each post has **one** author |
+| User → Comment | A user can write **many** comments |
+| Blog → Comment | A blog can have **many** comments |
+
+<Callout type="info">
+    A ForeignKey field stores the **ID** of the related object, not its name. For example, the `category` field becomes `category_id` in the database table. Django appends `_id` automatically.
+</Callout>
+
+---
+
+## About & Social Link Models
+
+Create an `assignments` app for these:
+
+```bash
+python manage.py startapp assignments
+```
+
+```python
+# assignments/models.py
+from django.db import models
+
+class About(models.Model):
+    about_heading     = models.CharField(max_length=25)
+    about_description = models.TextField(max_length=255)
+    created_at        = models.DateTimeField(auto_now_add=True)
+    updated_at        = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = 'About'
+
+    def __str__(self):
+        return self.about_heading
+
+
+class SocialLink(models.Model):
+    platform = models.CharField(max_length=25)
+    link     = models.URLField(max_length=100)
+
+    def __str__(self):
+        return self.platform
+```
+
+Prevent adding more than one About entry by overriding `has_add_permission`:
+
+```python
+# assignments/admin.py
+from django.contrib import admin
+from .models import About, SocialLink
+
+class AboutAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        return About.objects.all().count() == 0
+
+admin.site.register(About, AboutAdmin)
+admin.site.register(SocialLink)
+```

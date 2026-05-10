@@ -1,0 +1,96 @@
+# Q Objects — OR Queries in Django
+
+By default, Django combines all filter conditions using `AND`. If you need `OR` logic, Django provides the **`Q` object** from `django.db.models`.
+
+## Import
+
+```python
+from django.db.models import Q
+```
+
+---
+
+## Basic OR Query
+
+Wrap each condition in a `Q()` call and join them with the **pipe `|` operator**:
+
+```python
+Book.objects.filter(
+    Q(rating__lt=3) | Q(is_bestselling=True)
+)
+```
+
+This returns all books where the rating is less than 3 **or** the book is a bestseller.
+
+---
+
+## Combining OR and AND
+
+You can combine `Q` OR conditions with AND conditions in two ways:
+
+### Using a comma (AND via `Q`)
+
+```python
+Book.objects.filter(
+    Q(rating__lt=3) | Q(is_bestselling=True),
+    Q(author="J.K. Rowling")
+)
+```
+
+### Using a plain keyword argument
+
+For AND conditions, you can skip wrapping with `Q`:
+
+```python
+Book.objects.filter(
+    Q(rating__lt=3) | Q(is_bestselling=True),
+    author="J.K. Rowling"
+)
+```
+
+Both are equivalent and return books that match the OR condition **and** are authored by J.K. Rowling.
+
+---
+
+## Ordering Rule — Important
+
+> **Plain keyword arguments (non-`Q` conditions) must come _after_ all `Q` conditions.**
+
+This will **raise an error**:
+
+```python
+# ❌ Wrong — keyword argument before Q conditions
+Book.objects.filter(
+    author="J.K. Rowling",   # keyword arg first
+    Q(rating__lt=3) | Q(is_bestselling=True)
+)
+```
+
+This is correct:
+
+```python
+# ✅ Correct — Q conditions first, keyword args last
+Book.objects.filter(
+    Q(rating__lt=3) | Q(is_bestselling=True),
+    author="J.K. Rowling"
+)
+```
+
+---
+
+## Quick Reference
+
+| Goal | Syntax |
+|---|---|
+| OR condition | `Q(a=1) \| Q(b=2)` |
+| AND via Q | `Q(a=1), Q(b=2)` |
+| AND via keyword | `Q(a=1), b=2` (keyword must come last) |
+
+---
+
+## Summary
+
+- Use `Q` objects when you need **OR logic** in a query.
+- Use the **`|` pipe** for OR, and a **comma** for AND.
+- Plain keyword arguments can replace `Q` for AND conditions, but they **must be placed after** all `Q` arguments.
+- You don't need `Q` at all if your query only uses AND conditions.

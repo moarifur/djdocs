@@ -1,0 +1,126 @@
+import { Callout } from 'nextra/components'
+
+# Data Fetching
+
+This page covers TanStack React Query v5: setup, infinite scroll with `useInfiniteQuery`, and optimistic mutations.
+
+---
+
+## 1. Install
+
+```bash
+npm install -f @tanstack/react-query axios
+```
+
+---
+
+## 2. Infinite Scroll with `useInfiniteQuery`
+
+```jsx
+import { useInfiniteQuery } from '@tanstack/react-query'
+import InfiniteScroll from 'react-infinite-scroll-component'
+import axios from 'axios'
+
+function PostList({ searchParams }) {
+  const fetchPosts = async ({ pageParam = 1 }) => {
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts`, {
+      params: { page: pageParam, limit: 10, ...searchParams },
+    })
+    return res.data
+  }
+
+  const { data, fetchNextPage, hasNextPage, status } = useInfiniteQuery({
+    queryKey: ['posts', searchParams],
+    queryFn: fetchPosts,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? lastPage.currentPage + 1 : undefined,
+  })
+
+  if (status === 'pending') return <p>Loading…</p>
+  if (status === 'error')   return <p>Something went wrong.</p>
+
+  const allPosts = data.pages.flatMap((page) => page.posts ?? [])
+
+  return (
+    <InfiniteScroll
+      dataLength={allPosts.length}
+      next={fetchNextPage}
+      hasMore={!!hasNextPage}
+      loader={<p>Loading more posts…</p>}
+      endMessage={<p>All posts loaded.</p>}
+    >
+      {allPosts.map((post) => (
+        <PostListItem key={post._id} post={post} />
+      ))}
+    </InfiniteScroll>
+  )
+}
+```
+
+<Callout type="info">
+    `searchParams` is included in the `queryKey` array so React Query automatically refetches whenever the URL filters change. No manual `useEffect` needed.
+</Callout>
+
+---
+
+## 3. Mutations with Optimistic UI
+
+```jsx
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@clerk/clerk-react'
+
+function Comments({ postId }) {
+  const { getToken } = useAuth()
+  const queryClient = useQueryClient()
+
+  const addComment = useMutation({
+    mutationFn: async (newComment) => {
+      const token = await getToken()
+      return axios.post(
+        `${import.meta.env.VITE_API_URL}/comments/${postId}`,
+        newComment,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['comments', postId] }),
+    onError: (err) => toast.error(err.response.data),
+  })
+
+  return (
+    <>
+      {/* Show optimistic comment while the request is in-flight */}
+      {addComment.isPending && (
+        <Comment
+          comment={{
+            desc: addComment.variables.desc,
+            createdAt: new Date(),
+          }}
+        />
+      )}
+      {/* real comments list rendered here */}
+    </>
+  )
+}
+```
+
+<Callout type="info" emoji="💡">
+    **Optimistic UI pattern** — Before the server responds, immediately show the new comment (or toggled save state) using `mutation.isPending` + `mutation.variables`. TanStack Query's `invalidateQueries` then replaces the optimistic data with the real server response once it arrives.
+</Callout>
+
+---
+
+## 4. Authenticated Requests
+
+Pass the Clerk JWT as a Bearer token on any request that hits a protected route:
+
+```js
+const token = await getToken()
+
+axios.post('/posts', payload, {
+  headers: { Authorization: `Bearer ${token}` },
+})
+```
+
+The `@clerk/express` middleware on the backend verifies this token and populates `req.auth` automatically.

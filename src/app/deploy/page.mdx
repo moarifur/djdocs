@@ -1,0 +1,661 @@
+---
+title: Deploying Django to Production
+description: A complete guide to deploying your Django application — covering deployment considerations, settings hardening, static files, databases, environment variables, and hosting on AWS Elastic Beanstalk with S3 and PostgreSQL.
+---
+
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Deploying Django to Production
+
+This guide walks through every step needed to take your Django blog from a local development machine to a live production server. It covers deployment theory, settings hardening, static file strategies, database choices, environment variables, and a full worked example on AWS Elastic Beanstalk.
+
+---
+
+## Part 1 — Deployment Considerations Overview
+
+Before touching any code, there are four areas to plan for:
+
+| Area | Development | Production |
+|------|-------------|------------|
+| **Database** | SQLite (file-based) | SQLite (small sites) or PostgreSQL/MySQL |
+| **Settings** | `DEBUG=True`, no `ALLOWED_HOSTS` | `DEBUG=False`, hosts locked down |
+| **Static files** | Served automatically by `runserver` | Must be collected and served separately |
+| **Web server** | Django dev server (`manage.py runserver`) | Dedicated WSGI server (e.g. Nginx + Gunicorn) |
+
+<Callout type="warning">
+    Never use `manage.py runserver` in production. It is a development-only server that is not designed for real traffic.
+</Callout>
+
+### Django is not a web server
+
+Django handles requests once they arrive — routing, database queries, template rendering — but it does not listen on the network or manage TCP connections. That job belongs to a dedicated **web server** (Nginx, Apache) which forwards requests to Django via the **WSGI** interface.
+
+Your project already contains `my_site/wsgi.py` — this is the entry point that a production web server points at. Most hosting providers support WSGI; ASGI is an alternative for async workloads but WSGI is the more broadly supported standard.
+
+### Choosing a database
+
+SQLite ships with Python and needs zero configuration, making it ideal for development. For production, be aware:
+
+- **SQLite** — perfectly acceptable for low-traffic sites. Downsides: can be slow under concurrent writes, and if the file is deleted (e.g. on a server redeploy), all data is lost.
+- **PostgreSQL / MySQL** — dedicated database servers with better concurrency, managed backups, and clear separation of the database from application code. Django supports both natively via `django.db.backends.postgresql` and `django.db.backends.mysql`.
+
+<Callout type="info">
+    Django's model system is built on SQL, so NoSQL databases (MongoDB, etc.) cannot be used with the standard ORM.
+</Callout>
+
+### Static file serving options
+
+Django deliberately does not serve static or uploaded files in production because doing so through Python is inefficient. You have three options, in increasing order of performance:
+
+1. **Configure Django to serve them** — add `static()` calls in `urls.py`. Easy but not performance-optimized. Fine for small sites.
+2. **Web server serves them separately** — Nginx intercepts requests for `/static/` and `/files/` and returns the files directly, never reaching Django. Same machine, better performance.
+3. **Dedicated CDN / object storage** — files live in AWS S3 (or similar). Requests for assets go directly to S3, completely bypassing your Django server. Best performance; requires the most setup.
+
+This guide demonstrates all three approaches.
+
+---
+
+## Part 2 — Preparing `settings.py` for Production
+
+### 2.1 — Core security settings
+
+Open `my_site/settings.py` and review these keys before deploying:
+
+```python filename="my_site/settings.py"
+# ── Security ──────────────────────────────────────────────
+SECRET_KEY = "your-secret-key-here"   # keep this secret — use env vars in production
+DEBUG = True                           # MUST be False in production
+ALLOWED_HOSTS = []                     # fill in with your domain(s)
+```
+
+<Callout type="warning">
+    With `DEBUG = True` in production, Django shows full stack traces to any visitor when something goes wrong — a serious security leak. Always set `DEBUG = False` before going live.
+</Callout>
+
+### 2.2 — Collecting static files
+
+Django can automatically gather all static files from your apps into a single folder, ready for serving. Add `STATIC_ROOT` to `settings.py`:
+
+```python filename="my_site/settings.py"
+# Existing settings — keep these
+STATIC_URL = "/static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+
+# New — tells Django where to dump collected static files
+STATIC_ROOT = BASE_DIR / "staticfiles"
+```
+
+Then run the collect command:
+
+```bash
+python manage.py collectstatic
+```
+
+This creates a `staticfiles/` folder containing CSS, JS, and images from every app (including the admin). Re-run this command every time you change a static file before redeploying.
+
+<Callout type="info">
+    Never edit files inside `staticfiles/` directly — it is a build artefact. Always work in your original `static/` folder and re-collect.
+</Callout>
+
+Keep your media (user upload) settings separate:
+
+```python filename="my_site/settings.py"
+MEDIA_URL = "/files/"
+MEDIA_ROOT = BASE_DIR / "uploads"
+```
+
+<Callout type="warning">
+    Never use the same folder for `STATIC_ROOT` and `MEDIA_ROOT`. User uploads could otherwise overwrite your own CSS/JS files — a security vulnerability.
+</Callout>
+
+### 2.3 — Migrations checklist
+
+Before deploying, make sure your database is fully initialized:
+
+```bash
+python manage.py makemigrations
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+---
+
+## Part 3 — Locking in Dependencies
+
+Most Python hosting providers look for a `requirements.txt` file and install the listed packages automatically. Generate one from a clean virtual environment so it only contains what this project needs.
+
+<Steps>
+
+    ### Create a virtual environment
+
+    ```bash
+    python -m venv django_my_site
+    ```
+
+    Activate it (the environment name appears in your terminal prompt):
+
+    <Tabs items={['Windows', 'macOS / Linux']}>
+        <Tabs.Tab>
+            ```bash
+            django_my_site\Scripts\activate
+            ```
+        </Tabs.Tab>
+        <Tabs.Tab>
+            ```bash
+            source django_my_site/bin/activate
+            ```
+        </Tabs.Tab>
+    </Tabs>
+
+    ### Install only the packages this project needs
+
+    ```bash
+    pip install django Pillow
+    ```
+
+    Add any other project-specific packages here (e.g. `psycopg2` for PostgreSQL).
+
+    ### Freeze into requirements.txt
+
+    ```bash
+    python -m pip freeze > requirements.txt
+    ```
+
+    This produces a clean, minimal file like:
+
+    ```text filename="requirements.txt"
+    Django==4.x.x
+    Pillow==10.x.x
+    ```
+
+</Steps>
+
+<Callout type="info">
+    Always generate `requirements.txt` from inside an activated virtual environment. Running `pip freeze` globally can produce hundreds of unrelated packages.
+</Callout>
+
+---
+
+## Part 4 — Environment Variables
+
+Sensitive values (secret key, allowed host domain, database credentials) should never be hard-coded in `settings.py` — especially if you push code to GitHub. Use **environment variables** instead: named placeholders that receive their concrete values at runtime from the hosting environment.
+
+Python's built-in `os.getenv()` reads these variables:
+
+```python filename="my_site/settings.py"
+from os import getenv
+
+# Secret key — read from environment, no default (server must set it)
+SECRET_KEY = getenv("SECRET_KEY", "fallback-dev-key-change-in-production")
+
+# DEBUG — True locally (default), False in production (set IS_DEVELOPMENT=False)
+DEBUG = getenv("IS_DEVELOPMENT", "True") == "True"
+
+# Allowed hosts — add localhost as default for local dev
+ALLOWED_HOSTS = [
+    getenv("APP_HOST", "localhost"),
+]
+```
+
+<Callout type="info">
+    The environment variable is named `IS_DEVELOPMENT` (not `IS_PRODUCTION`) because its default is `True` — matching local development. When you deploy, set `IS_DEVELOPMENT=False` on the server to disable debug mode.
+</Callout>
+
+You set environment variable values through your hosting provider's dashboard (shown later for AWS Elastic Beanstalk).
+
+---
+
+## Part 5 — Serving Static Files (Option 1: via Django)
+
+The simplest approach — configure Django itself to serve static files. Works out of the box; not performance-optimized but perfectly fine for low-traffic sites.
+
+Add a second `static()` call in `my_site/urls.py`:
+
+```python filename="my_site/urls.py"
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path("", include("blog.urls")),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) \
+  + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+```
+
+<Callout type="warning">
+    These `static()` calls are only intended for small sites or temporary setups. For higher-traffic deployments, use Option 2 (web server) or Option 3 (S3) below.
+</Callout>
+
+---
+
+## Part 6 — Deploying to AWS Elastic Beanstalk
+
+This section walks through a full deployment to AWS using **Elastic Beanstalk** — a service that provisions a server, installs Python, deploys your code, and starts a web server automatically.
+
+<Callout type="info">
+    AWS requires a credit card at sign-up. The steps shown here stay within the **Free Tier** for new accounts. Always check current pricing at [aws.amazon.com/free](https://aws.amazon.com/free).
+</Callout>
+
+### 6.1 — Add the Elastic Beanstalk config file
+
+Elastic Beanstalk needs to know which WSGI file to point the web server at. Create this folder and file:
+
+<FileTree>
+    <FileTree.Folder name="my_site" defaultOpen>
+        <FileTree.Folder name=".ebextensions" defaultOpen>
+            <FileTree.File name="django.config" />
+        </FileTree.Folder>
+        <FileTree.File name="manage.py" />
+        <FileTree.File name="requirements.txt" />
+    </FileTree.Folder>
+</FileTree>
+
+```yaml filename=".ebextensions/django.config"
+option_settings:
+  aws:elasticbeanstalk:container:python:
+    WSGIPath: my_site.wsgi:application
+```
+
+<Callout type="warning">
+    YAML is whitespace-sensitive. Use **2 spaces** for each indentation level — no tabs. Any typo here will cause the deployment to fail silently.
+</Callout>
+
+Replace `my_site` with your actual project folder name (the one containing `wsgi.py`).
+
+### 6.2 — Create the ZIP deployment package
+
+Select these files and folders and compress them into a single ZIP. **Do not zip the outer project folder itself** — zip the contents:
+
+| Include | Notes |
+|---------|-------|
+| `blog/` | Your app |
+| `my_site/` | Project config folder |
+| `templates/` | Global templates |
+| `staticfiles/` | Collected static files (run `collectstatic` first) |
+| `uploads/` | User-uploaded media |
+| `db.sqlite3` | Your database (if using SQLite) |
+| `manage.py` | Django management script |
+| `requirements.txt` | Dependencies |
+| `.ebextensions/` | EB config (enable hidden files in Finder/Explorer) |
+
+<Callout type="info">
+    Do not include the `static/` source folder or your virtual environment folder (`django_my_site/`).
+</Callout>
+
+### 6.3 — Create and configure the application
+
+<Steps>
+
+    ### Open Elastic Beanstalk in the AWS Console
+
+    Search for "Elastic Beanstalk" and click **Create Application**.
+
+    ### Set the application name and platform
+
+    Give your application any name (e.g. `django-blog`) and choose **Python** as the platform.
+
+    ### Upload your code
+
+    Select **Upload your own code**, then choose the ZIP file you created.
+
+    ### Configure environment properties
+
+    Click **Configure more options** → **Software** → **Environment properties**. Add these key/value pairs:
+
+    | Key | Value |
+    |-----|-------|
+    | `IS_DEVELOPMENT` | `False` |
+    | `APP_HOST` | *(leave as a placeholder for now — update after first deploy)* |
+
+    ### Create the application
+
+    Click **Create app** and wait several minutes for the server to provision.
+
+    ### Update APP_HOST
+
+    Once deployed, Elastic Beanstalk assigns a domain (e.g. `django-blog.us-east-1.elasticbeanstalk.com`). Copy this domain, go back to **Configuration → Software → Environment properties**, and set `APP_HOST` to this domain (without `http://` or a trailing slash). Click **Apply**.
+
+</Steps>
+
+<Callout type="info">
+    If you see an "Invalid HTTP_HOST header" error after the first deploy, it means `APP_HOST` hasn't been set yet. Update it with the assigned domain and redeploy.
+</Callout>
+
+### 6.4 — SSL and custom domains
+
+SSL (HTTPS) on Elastic Beanstalk requires adding a **load balancer**, which is not included in the Free Tier. Custom domains are registered through **AWS Route 53**. Both incur additional costs — consult AWS pricing docs and the official [Elastic Beanstalk SSL guide](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/configuring-https.html) for steps.
+
+---
+
+## Part 7 — Connecting PostgreSQL (AWS RDS)
+
+SQLite works for simple deploys but a managed PostgreSQL database is more robust for production. AWS provides this through **RDS (Relational Database Service)**.
+
+### 7.1 — Create the RDS instance
+
+In the AWS Console → RDS → **Create database**:
+
+- **Engine**: PostgreSQL
+- **Template**: Free tier
+- **DB identifier**: `django-blog`
+- **Master username**: `djangoblog`
+- **Master password**: choose a strong password
+- **Public access**: Yes (needed to run migrations locally against it)
+- **VPC security group**: Create new → name it `django-db`
+
+### 7.2 — Install the PostgreSQL driver
+
+```bash
+pip install psycopg2
+python -m pip freeze > requirements.txt   # update requirements
+```
+
+### 7.3 — Update database settings
+
+Replace the SQLite config in `settings.py` with the PostgreSQL connection:
+
+```python filename="my_site/settings.py"
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "postgres",        # default DB name created by RDS
+        "USER": "djangoblog",      # master username you set
+        "PASSWORD": "yourpassword",
+        "HOST": "your-endpoint.rds.amazonaws.com",  # from RDS dashboard
+        "PORT": "5432",
+    }
+}
+```
+
+Find `HOST` and `PORT` in the RDS console under **Connectivity & Security**. Find credentials under **View credential details**.
+
+<Callout type="info">
+    Consider using `getenv()` for `PASSWORD`, `HOST`, and `USER` — especially if this code will ever be pushed to a public repository.
+</Callout>
+
+### 7.4 — Run migrations and create a superuser
+
+With the RDS instance up, run migrations against it locally (the database is publicly accessible because we enabled that):
+
+```bash
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+### 7.5 — Fix the security group to allow the deployed app
+
+By default the RDS security group only allows traffic from your local IP. The Elastic Beanstalk server needs access too.
+
+1. Go to RDS → your database → **Connectivity & Security** → click the security group.
+2. Go to **Inbound rules** → **Edit inbound rules**.
+3. Change the existing rule's source from "My IP" to **Anywhere (0.0.0.0/0)**.
+4. Save.
+
+<Callout type="warning">
+    Opening the database to the world (0.0.0.0/0) is acceptable here because it is still protected by username and password. For stricter setups, configure AWS VPC peering so only your Elastic Beanstalk instance can reach the database.
+</Callout>
+
+### 7.6 — Fix ALLOWED_HOSTS for local development
+
+With the environment variable approach, `localhost` won't be in `ALLOWED_HOSTS` when you run locally unless you add a fallback:
+
+```python filename="my_site/settings.py"
+ALLOWED_HOSTS = [
+    getenv("APP_HOST", "localhost"),
+    "localhost",   # explicit fallback for local runserver
+]
+```
+
+Redeploy your updated ZIP file to Elastic Beanstalk to apply the PostgreSQL settings.
+
+---
+
+## Part 8 — Serving Static Files (Option 2: via Nginx)
+
+Elastic Beanstalk uses **Nginx** as its web server. You can tell it to serve static and uploaded files directly — without involving Django at all — by adding a second config file.
+
+### 8.1 — Remove Django's static file serving
+
+First, remove the static file `static()` call from `my_site/urls.py` so Django is no longer in the loop for those requests:
+
+```python filename="my_site/urls.py"
+# Keep only the media URL line; remove the static URL line
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path("", include("blog.urls")),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Remove: + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+```
+
+### 8.2 — Add the Nginx static-files config
+
+Create a second config file in `.ebextensions/`:
+
+```yaml filename=".ebextensions/static-files.config"
+option_settings:
+  aws:elasticbeanstalk:environment:proxy:staticfiles:
+    /static: staticfiles
+    /files: uploads
+```
+
+This maps URL path → folder name on disk:
+
+| URL prefix | Folder served |
+|------------|---------------|
+| `/static/` | `staticfiles/` (collected static files) |
+| `/files/` | `uploads/` (user-uploaded media) |
+
+These paths must match `STATIC_URL` and `MEDIA_URL` in `settings.py` (without the trailing slash).
+
+Rebuild your ZIP file (same files as before), upload, and redeploy. Nginx now handles static and uploaded files directly, improving performance.
+
+---
+
+## Part 9 — Serving Static Files (Option 3: AWS S3)
+
+For maximum performance and scalability, offload all static and uploaded files to **AWS S3** — a dedicated object storage service optimized for serving files at scale.
+
+### 9.1 — Create an S3 bucket
+
+1. In the AWS Console, go to **S3** → **Create bucket**.
+2. Give it a globally unique name (e.g. `django-blog-assets`).
+3. Uncheck **Block all public access** — files need to be publicly readable.
+4. Create the bucket.
+
+**Enable static website hosting** (Properties tab → Static website hosting → Enable → Host a static website). Fill in any values for the index/error document fields — these won't be used.
+
+**Set a CORS policy** (Permissions tab → Cross-origin resource sharing → Edit):
+
+```json
+[
+  {
+    "AllowedHeaders": ["Authorization"],
+    "AllowedMethods": ["GET"],
+    "AllowedOrigins": ["*"],
+    "ExposeHeaders": []
+  }
+]
+```
+
+**Set a bucket policy** (Permissions tab → Bucket policy → Edit). Replace `YOUR-BUCKET-NAME` with your actual bucket name:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadGetObject",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::YOUR-BUCKET-NAME/*"
+    }
+  ]
+}
+```
+
+### 9.2 — Create an IAM user for programmatic access
+
+Your Django app needs credentials to upload files to S3. Create a dedicated IAM user with minimal permissions:
+
+<Steps>
+
+    ### Create a group
+
+    IAM → **Groups** → **Create group** → name it `django-blog-group` → attach the **AmazonS3FullAccess** policy → Create group.
+
+    ### Create a user
+
+    IAM → **Users** → **Add user** → name it `django-blog-user` → access type: **Programmatic access** → add to `django-blog-group` → Create user.
+
+    ### Download credentials
+
+    On the final screen, **download the CSV file** — this contains the Access Key ID and Secret Access Key you'll need. This is the only time you can see the secret key.
+
+</Steps>
+
+<Callout type="warning">
+    Never commit AWS credentials to version control. Use environment variables or AWS IAM roles in production.
+</Callout>
+
+### 9.3 — Install the required packages
+
+```bash
+pip install django-storages boto3
+python -m pip freeze > requirements.txt
+```
+
+### 9.4 — Update settings.py
+
+```python filename="my_site/settings.py"
+INSTALLED_APPS = [
+    # ... existing apps ...
+    "storages",   # django-storages (note the "s")
+]
+
+# AWS S3 settings
+AWS_STORAGE_BUCKET_NAME = "django-blog-assets"   # your bucket name
+AWS_S3_REGION_NAME = "us-east-1"                 # your bucket's region
+AWS_ACCESS_KEY_ID = "YOUR_ACCESS_KEY_ID"
+AWS_SECRET_ACCESS_KEY = "YOUR_SECRET_ACCESS_KEY"
+AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
+
+# Sub-folder names within the bucket
+STATICFILES_FOLDER = "static"
+MEDIAFILES_FOLDER = "media"
+
+# Point Django to our custom storage classes (defined next)
+STATICFILES_STORAGE = "custom_storages.StaticFileStorage"
+DEFAULT_FILE_STORAGE = "custom_storages.MediaFileStorage"
+```
+
+### 9.5 — Create custom storage classes
+
+Create `custom_storages.py` next to `manage.py`:
+
+```python filename="custom_storages.py"
+from django.conf import settings
+from storages.backends.s3boto3 import S3Boto3Storage
+
+
+class StaticFileStorage(S3Boto3Storage):
+    location = settings.STATICFILES_FOLDER   # → s3://bucket/static/
+
+
+class MediaFileStorage(S3Boto3Storage):
+    location = settings.MEDIAFILES_FOLDER    # → s3://bucket/media/
+```
+
+Using separate classes with different `location` values keeps developer-owned static files and user uploads in distinct S3 sub-folders, preventing users from overwriting your CSS or JavaScript.
+
+### 9.6 — Collect static files to S3
+
+```bash
+python manage.py collectstatic
+```
+
+Instead of writing to `staticfiles/`, Django now uploads every file directly to your S3 bucket under the `static/` prefix. After this completes, verify the files appear in your S3 console.
+
+### 9.7 — Test locally without static file serving
+
+```bash
+python manage.py runserver --nostatic
+```
+
+This starts the dev server but disables its built-in static file serving. If your site still loads styles and images, they are being fetched from S3 — confirming the connection works.
+
+### 9.8 — Rebuild and redeploy
+
+When creating the final ZIP for Elastic Beanstalk, you no longer need `staticfiles/` or `uploads/` in the archive — those now live on S3:
+
+| Include | Notes |
+|---------|-------|
+| `blog/` | App code |
+| `my_site/` | Project config |
+| `templates/` | Templates |
+| `manage.py` | Management script |
+| `requirements.txt` | Updated with `django-storages`, `boto3`, `psycopg2` |
+| `custom_storages.py` | New S3 storage classes |
+| `.ebextensions/django.config` | WSGI entry point |
+
+Zip, upload to Elastic Beanstalk, deploy. Your production app will now fetch and serve all assets directly from S3.
+
+---
+
+## Updated Project File Tree
+
+<FileTree>
+    <FileTree.Folder name="my_site" defaultOpen>
+        <FileTree.Folder name=".ebextensions" defaultOpen>
+            <FileTree.File name="django.config" />
+            <FileTree.File name="static-files.config" />
+        </FileTree.Folder>
+        <FileTree.Folder name="blog">
+            <FileTree.File name="models.py" />
+            <FileTree.File name="views.py" />
+            <FileTree.File name="urls.py" />
+        </FileTree.Folder>
+        <FileTree.Folder name="my_site">
+            <FileTree.File name="settings.py" />
+            <FileTree.File name="urls.py" />
+            <FileTree.File name="wsgi.py" />
+        </FileTree.Folder>
+        <FileTree.Folder name="templates" />
+        <FileTree.Folder name="static" />
+        <FileTree.Folder name="staticfiles" />
+        <FileTree.Folder name="uploads" />
+        <FileTree.File name="manage.py" />
+        <FileTree.File name="requirements.txt" />
+        <FileTree.File name="custom_storages.py" />
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Summary
+
+| Topic | What was covered |
+|-------|-----------------|
+| **Deployment basics** | Django ≠ web server; WSGI entry point; `runserver` is dev-only |
+| **Database choices** | SQLite (simple), PostgreSQL via RDS (production-grade) |
+| **Settings hardening** | `DEBUG=False`, `SECRET_KEY`, `ALLOWED_HOSTS`, `STATIC_ROOT` |
+| **Dependencies** | Virtual environments, `pip freeze > requirements.txt` |
+| **Environment variables** | `os.getenv()` for secrets, `IS_DEVELOPMENT`, `APP_HOST` |
+| **Static files — Option 1** | Django serves via `static()` in `urls.py` |
+| **Static files — Option 2** | Nginx serves directly via `.ebextensions/static-files.config` |
+| **Static files — Option 3** | AWS S3 via `django-storages` + `boto3` + custom storage classes |
+| **Elastic Beanstalk** | ZIP upload, `.ebextensions/django.config`, environment properties |
+| **PostgreSQL on RDS** | `psycopg2`, `DATABASES` settings, security group rules |
+| **S3 setup** | Bucket policy, CORS, IAM user, `custom_storages.py` |
+
+---
+
+## What's Next
+
+- Set up a **CI/CD pipeline** (GitHub Actions, AWS CodePipeline) to automate ZIP building and deployment on every push.
+- Move all credentials to **AWS Secrets Manager** or environment variables so nothing sensitive lives in `settings.py`.
+- Add a **CloudFront CDN** in front of S3 for global edge caching of static assets.
+- Consider **Docker** to containerize your application for consistent, reproducible deployments across any provider.
+- Explore alternative hosts: **Railway**, **Render**, or **DigitalOcean App Platform** — all have Django-specific guides and simpler initial setups than Elastic Beanstalk.

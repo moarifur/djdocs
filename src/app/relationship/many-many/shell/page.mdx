@@ -1,0 +1,184 @@
+import { Callout, FileTree, Steps, Tabs, Cards } from 'nextra/components'
+
+export const metadata = {
+    title: 'Many-to-Many Relations in Django Shell',
+    description:
+        'How to create, connect, and query many-to-many relations in the Django shell, including inverse access and related_name.',
+}
+
+# Many-to-Many Relations in Django Shell
+
+This guide shows how to create a many-to-many relation between `Book` and `Country`, connect records in the Django shell, and query the relation from both sides. It also uses Nextra v4 components in the correct way: `Cards.Card` under `Cards`, `Tabs.Tab` under `Tabs`, and headings inside `Steps` instead of `Steps.Step`. [web:19][web:28][web:29]
+
+<Callout type="info">
+    In Nextra v4, import only the parent components you need from `nextra/components`. Use `Cards.Card` and `Tabs.Tab`, and do not import `Card` or `Tab` as standalone named exports. [web:28][web:29][web:30]
+</Callout>
+
+## What you will learn
+
+- How to import the models in the shell.
+- How to create a related `Country` object.
+- How to connect it to a `Book` with `.add()`.
+- How to query the relation from both sides.
+- How to rename the reverse relation with `related_name`.
+
+<Steps>
+    ### Import the models
+
+    Start by opening the shell and importing the two models involved in the relation, `Country` and `Book`.
+
+    ```python
+    from book_outlet.models import Country, Book
+    ```
+
+    ### Inspect the existing data
+
+    You can fetch a book and inspect its related countries. If the relation is not yet mapped, the related queryset will be empty.
+
+    ```python
+    book = Book.objects.get(title='Harry Potter')
+    book.published_countries.all()
+    ```
+
+    ### Create a country
+
+    Create a new country instance with keyword arguments, then save it to the database.
+
+    ```python
+    germany = Country(name='Germany', code='DE')
+    germany.save()
+    ```
+
+    ### Connect the relation
+
+    Because this is a many-to-many field, use `.add()` instead of assigning a single object directly.
+
+    ```python
+    book = Book.objects.all()
+    book.published_countries.add(germany)
+    ```
+
+    ### Query the relation
+
+    After saving and linking the country, you can query it through the book as well as filter by fields on the related model.
+
+    ```python
+    book.published_countries.all()
+    book.published_countries.filter(code='DE')
+    ```
+
+    ### Use the reverse side
+
+    Django also creates the reverse relation automatically. From the `Country` side, the default name is usually `book_set`.
+
+    ```python
+    country = Country.objects.all()
+    country.book_set.all()
+    ```
+</Steps>
+
+## Many-to-many behavior
+
+A many-to-many field stores a list of related objects, not a single value. That is why `book.published_countries = germany` is wrong, while `book.published_countries.add(germany)` is correct. [web:29]
+
+<Callout type="warning">
+    You can only create the relation after the related object has been saved. If `germany.save()` is skipped, Django cannot attach the relation yet. [web:29]
+</Callout>
+
+## Reverse relation name
+
+The reverse accessor is automatically created by Django, and in this example it is `book_set`. If you want a different name, add `related_name` on the many-to-many field in the model definition. [web:29]
+
+```python
+published_countries = models.ManyToManyField(
+    Country,
+    related_name='books',
+)
+```
+
+## Shell walkthrough
+
+<Tabs items={['Read', 'Write', 'Query']}>
+    <Tabs.Tab>
+
+        ### Read
+
+        First, inspect the existing book and its countries.
+
+        ```python
+        book = Book.objects.get(title='Harry Potter')
+        book.published_countries.all()
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ### Write
+
+        Create and save the country, then attach it to the book.
+
+        ```python
+        germany = Country(name='Germany', code='DE')
+        germany.save()
+        book = Book.objects.all()
+        book.published_countries.add(germany)
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ### Query
+
+        Verify the link from both directions.
+
+        ```python
+        book.published_countries.filter(code='DE')
+        Country.objects.get(code='DE').book_set.all()
+        ```
+
+    </Tabs.Tab>
+</Tabs>
+
+## Project structure
+
+<FileTree>
+    <FileTree.Folder name="book_outlet" defaultOpen>
+        <FileTree.Folder name="models">
+            <FileTree.File name="__init__.py" />
+            <FileTree.File name="book.py" />
+            <FileTree.File name="country.py" />
+        </FileTree.Folder>
+        <FileTree.Folder name="management">
+            <FileTree.Folder name="commands">
+                <FileTree.File name="shell.py" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+## Important notes
+
+<Callout>
+    Use `.add()` for many-to-many relations, not assignment. The reverse accessor can be changed with `related_name`, but if you leave it default Django will use the automatic `*_set` naming pattern. [web:29]
+</Callout>
+
+<Callout type="info">
+    In Nextra v4, `Steps` works by wrapping markdown headings directly. There is no `Steps.Step` component, so headings like `### Step 1` belong inside the `<Steps>` block. [web:19]
+</Callout>
+
+## Component usage reference
+
+| Component | Correct Nextra v4 pattern |
+|---|---|
+| Cards | `import { Cards } from 'nextra/components'` then use `<Cards.Card href="/...">` [web:29] |
+    | Tabs | `import { Tabs } from 'nextra/components'` then use `<Tabs.Tab>` inside `<Tabs>` [web:28] |
+        | Steps | `import { Steps } from 'nextra/components'` then place headings directly inside `<Steps>` [web:19] |
+            | FileTree | `import { FileTree } from 'nextra/components'` then use `<FileTree.Folder>` and `<FileTree.File>` [web:20] |
+
+                ## Example cards
+
+                <Cards>
+                    <Cards.Card title="Callout Component" href="/docs/built-ins/callout" />
+                    <Cards.Card title="Tabs Component" href="/docs/built-ins/tabs" />
+                    <Cards.Card title="Steps Component" href="/docs/built-ins/steps" />
+                </Cards>

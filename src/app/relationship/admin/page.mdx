@@ -1,0 +1,123 @@
+---
+title: Django Admin Configuration
+description: Register models, improve display labels, and manage relational data through Django's admin interface.
+---
+
+import { Callout } from 'nextra/components'
+
+# Django Admin Configuration
+
+This guide covers everything you need to set up and manage models — including relational data — through Django's built-in admin interface.
+
+---
+
+## Registering a Model
+
+Open `admin.py`, import your model, and call `admin.site.register()`:
+
+```python
+# admin.py
+from django.contrib import admin
+from .models import Book, Author, Address, Country
+
+admin.site.register(Author)
+admin.site.register(Book)
+admin.site.register(Address)
+admin.site.register(Country)
+```
+
+Start the development server and reload the admin panel — registered models appear in the sidebar immediately.
+
+---
+
+## Improving Object Display
+
+By default, Django shows instances as `Author object (1)`. Fix this by adding `__str__` to your model.
+
+```python
+class Author(models.Model):
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+
+    def __str__(self):
+        return self.full_name()
+```
+
+Extracting the logic into `full_name()` keeps it reusable in templates and views — `__str__` simply delegates to it.
+
+---
+
+## Fixing Plural Labels
+
+Django auto-pluralizes model names by appending `s`. For irregular names (e.g., `Countrys` instead of `Countries`), override this in the model's inner `Meta` class:
+
+```python
+class Country(models.Model):
+    name = models.CharField(max_length=80)
+    code = models.CharField(max_length=2)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name_plural = "Countries"
+```
+
+<Callout>
+    `Meta` is a standard Python nested class. Django reads specific attributes from it — `verbose_name_plural` controls the plural display name in the admin.
+</Callout>
+
+---
+
+## Managing Relations in the Admin
+
+### ForeignKey — dropdown
+
+When a model has a `ForeignKey` (e.g., a `Book` linked to an `Author`), Django renders a **dropdown** in the change form populated with all existing related records.
+
+The **"+"** button beside the dropdown opens a popup to create a new related record on the spot, which is then automatically selected.
+
+### OneToOneField — same as ForeignKey
+
+The admin form behaves identically for `OneToOneField`. The only difference is enforced uniqueness — once an address is assigned to one author, it will not appear as an option for another.
+
+<Callout type="warning">
+    If you try to assign the same related object to a second record in a one-to-one relation, Django will raise an error. Create a separate object for each record.
+</Callout>
+
+### ManyToManyField — multi-select
+
+For many-to-many relations, Django renders a **multi-select widget** instead of a single dropdown, letting you assign multiple related records at once.
+
+---
+
+## Using Inlines
+
+To display and edit related records directly inside a parent model's admin page, use `TabularInline` or `StackedInline`:
+
+```python
+# admin.py
+class BookInline(admin.TabularInline):
+    model = Book
+    extra = 1
+
+@admin.register(Author)
+class AuthorAdmin(admin.ModelAdmin):
+    inlines = [BookInline]
+```
+
+This renders all of an author's books directly on the author detail page, with a blank row for adding new ones.
+
+---
+
+## Admin vs. Shell
+
+| Approach | Best For |
+|---|---|
+| Admin panel | Day-to-day data management, content editing, quick CRUD |
+| Shell / views | Programmatic operations, automation, scripted data handling |
+
+Both execute the same underlying database queries — the admin is a convenience layer on top of the same ORM you use in code.

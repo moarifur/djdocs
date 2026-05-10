@@ -1,0 +1,98 @@
+---
+title: Django ORM Relationship Lookups
+description: Query across related models using __ syntax, reverse accessors, and related_name.
+---
+
+import { Callout } from 'nextra/components'
+
+# Django ORM Relationship Lookups
+
+Once your relationships are defined, Django's ORM lets you query across them using double underscore (`__`) syntax and automatic reverse accessors.
+
+---
+
+## Filtering by a Related Field
+
+To filter a queryset based on a field in a related model, chain the relation field and the target field with `__`:
+
+```python
+# All books where the author's last name is "Rowling"
+Book.objects.filter(author__last_name="Rowling")
+```
+
+Add a lookup modifier for partial or comparative matches:
+
+```python
+# Author's last name contains "ling"
+Book.objects.filter(author__last_name__contains="ling")
+```
+
+### General pattern
+
+```
+Model.objects.filter(<relation_field>__<related_field>__<modifier>=<value>)
+```
+
+| Part | Description |
+|---|---|
+| `relation_field` | The ForeignKey field on the current model (e.g., `author`) |
+| `related_field` | A field on the related model (e.g., `last_name`) |
+| `modifier` *(optional)* | A lookup like `contains`, `icontains`, `gt`, `lt` |
+
+---
+
+## Reverse Accessors
+
+Django automatically creates a reverse accessor on the related model so you can query from the other side of a relationship.
+
+### Default name: `<modelname>_set`
+
+```python
+rowling = Author.objects.get(first_name="J.K.")
+
+rowling.book_set.all()
+rowling.book_set.get(title="Harry Potter 1")
+rowling.book_set.filter(rating__gt=3)
+```
+
+Django derives the name from the related model's class name, lowercased, with `_set` appended.
+
+### Customizing with `related_name`
+
+Set `related_name` on the field to use a cleaner accessor name:
+
+```python
+# models.py
+class Book(models.Model):
+    author = models.ForeignKey(
+        Author,
+        on_delete=models.CASCADE,
+        related_name="books",   # replaces book_set
+    )
+```
+
+```python
+rowling.books.all()
+rowling.books.filter(rating__gt=3)
+```
+
+<Callout type="warning">
+    After changing `related_name` (or any model field), create and apply new migrations:
+
+    ```bash
+    python manage.py makemigrations
+    python manage.py migrate
+    ```
+</Callout>
+
+---
+
+## Quick Reference
+
+| Use Case | Example |
+|---|---|
+| Filter by related field | `Book.objects.filter(author__last_name="Rowling")` |
+| Filter with modifier | `Book.objects.filter(author__last_name__contains="ling")` |
+| Reverse relation (default) | `author.book_set.all()` |
+| Reverse relation (custom name) | `author.books.all()` |
+| Filter on reverse relation | `author.books.filter(rating__gt=3)` |

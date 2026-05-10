@@ -1,0 +1,120 @@
+import { Callout, FileTree } from 'nextra/components'
+
+# MERN Stack Blog App — Full Tutorial Guide
+
+Build a full-stack blog application using **React 19**, **Express 5**, **MongoDB**, and **Clerk** authentication — complete with infinite scroll, user roles, image optimization, and one-click VPS deployment.
+
+<Callout type="info">
+    This guide is based on a full video tutorial. All source code is available on GitHub (see the repo link in the original video). Fork the starter branch to match the exact React 19 RC version used here.
+</Callout>
+
+---
+
+## What You'll Build
+
+- 🏠 **Homepage** — featured posts, category filters, animated CTA
+- 📜 **Post list** — infinite scroll, search, sort filters, category sidebar
+- 📄 **Single post** — rich content, sticky sidebar, save/delete actions
+- ✍️ **Write page** — rich text editor, image/video upload, cover photo
+- 🔐 **Auth pages** — Clerk-powered login & register
+- 👮 **Admin role** — feature posts, delete any post or comment
+- 🚀 **VPS deployment** — Hostinger + CloudPanel + pm2
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, Vite, Tailwind CSS, React Router v6 |
+| Backend | Express 5, Node.js |
+| Database | MongoDB Atlas + Mongoose |
+| Auth | Clerk |
+| Media | ImageKit |
+| Data fetching | TanStack React Query v5 |
+| Editor | React Quill New |
+| Deployment | Hostinger VPS, CloudPanel, pm2 |
+
+---
+
+## Project Structure
+
+<FileTree>
+    <FileTree.Folder name="project-root" defaultOpen>
+        <FileTree.Folder name="client" defaultOpen>
+            <FileTree.Folder name="src">
+                <FileTree.Folder name="components">
+                    <FileTree.File name="Navbar.jsx" />
+                    <FileTree.File name="MainCategories.jsx" />
+                    <FileTree.File name="FeaturedPosts.jsx" />
+                    <FileTree.File name="PostList.jsx" />
+                    <FileTree.File name="PostListItem.jsx" />
+                    <FileTree.File name="Comments.jsx" />
+                    <FileTree.File name="PostMenuActions.jsx" />
+                    <FileTree.File name="Search.jsx" />
+                    <FileTree.File name="Upload.jsx" />
+                    <FileTree.File name="Image.jsx" />
+                    <FileTree.File name="SideMenu.jsx" />
+                </FileTree.Folder>
+                <FileTree.Folder name="layouts">
+                    <FileTree.File name="MainLayout.jsx" />
+                </FileTree.Folder>
+                <FileTree.Folder name="routes">
+                    <FileTree.File name="Homepage.jsx" />
+                    <FileTree.File name="PostListPage.jsx" />
+                    <FileTree.File name="SinglePostPage.jsx" />
+                    <FileTree.File name="WritePage.jsx" />
+                    <FileTree.File name="LoginPage.jsx" />
+                    <FileTree.File name="RegisterPage.jsx" />
+                </FileTree.Folder>
+                <FileTree.File name="main.jsx" />
+                <FileTree.File name="index.css" />
+            </FileTree.Folder>
+            <FileTree.File name=".env" />
+            <FileTree.File name="index.html" />
+        </FileTree.Folder>
+        <FileTree.Folder name="backend" defaultOpen>
+            <FileTree.Folder name="routes">
+                <FileTree.File name="user.route.js" />
+                <FileTree.File name="post.route.js" />
+                <FileTree.File name="comment.route.js" />
+                <FileTree.File name="webhook.route.js" />
+            </FileTree.Folder>
+            <FileTree.Folder name="controllers">
+                <FileTree.File name="post.controller.js" />
+                <FileTree.File name="user.controller.js" />
+                <FileTree.File name="comment.controller.js" />
+                <FileTree.File name="webhook.controller.js" />
+            </FileTree.Folder>
+            <FileTree.Folder name="models">
+                <FileTree.File name="user.model.js" />
+                <FileTree.File name="post.model.js" />
+                <FileTree.File name="comment.model.js" />
+            </FileTree.Folder>
+            <FileTree.Folder name="lib">
+                <FileTree.File name="connectDB.js" />
+            </FileTree.Folder>
+            <FileTree.File name="index.js" />
+            <FileTree.File name=".env" />
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Guide Sections
+
+This guide is split across multiple pages to keep build times fast:
+
+| Page | Topics |
+|---|---|
+| [Frontend Setup](./frontend-setup) | Vite, styles, env vars, routing, Clerk auth |
+| [Backend Setup](./backend-setup) | Express 5, MongoDB, Mongoose models, API routes |
+| [Features](./features) | Image upload, rich text editor, search & filters, pagination |
+| [Data Fetching](./data-fetching) | TanStack React Query, infinite scroll, mutations |
+| [Admin & Roles](./admin-roles) | Clerk roles, server-side guards, slug generation |
+| [Deployment](./deployment) | VPS, CloudPanel, pm2, SSL |
+
+<Callout type="warning" emoji="⚠️">
+    **React 19 RC compatibility** — Always add the `-f` (force) flag when installing npm packages to skip the peer-dependency check that would otherwise block installation against the RC version.
+</Callout>

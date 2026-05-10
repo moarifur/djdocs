@@ -1,0 +1,86 @@
+---
+title: Understanding Data Categories
+description: Learn to classify application data as temporary, semi-persistent, or persistent before deciding where to store it.
+---
+
+import { Callout, Steps } from 'nextra/components'
+
+# Understanding Data Categories
+
+Before writing a single model, it helps to classify the data your application uses. The storage mechanism you choose should match the *lifespan* of the data — not just its format.
+
+<Callout>
+    The three categories below are not official standards. They are a practical mental model for thinking about where data should live in a web application.
+</Callout>
+
+## The three categories
+
+### Temporary data
+
+Temporary data is created, used immediately, and discarded. It never needs to outlive the function or request that produced it.
+
+**Examples:**
+- The values a user just typed into a form (before you validate and save them)
+- A blog post object fetched by URL to render a single template
+
+This data lives in regular Python variables. Once the view function returns, the variable goes out of scope and is garbage-collected. There is nothing wrong with this — it is the right tool for data that has no future.
+
+```python
+# A classic example of temporary data
+def book_detail(request, slug):
+    book = get_object_or_404(Book, slug=slug)  # temporary — used only here
+    return render(request, 'book_detail.html', {'book': book})
+```
+
+### Semi-persistent data
+
+Semi-persistent data needs to survive beyond a single request, but it is acceptable — sometimes even desirable — for it to expire or be cleared deliberately.
+
+**Examples:**
+- Whether a user is currently logged in (their authentication status)
+- A shopping cart that resets after checkout
+- A "remember this preference" flag stored in the browser
+
+<Callout type="info">
+    Think of online banking: you are automatically logged out after 15 minutes. The authentication token is semi-persistent — it exists for a while, but clearing it on expiry is intentional behaviour, not data loss.
+</Callout>
+
+Storage options include browser cookies, the browser's `localStorage`, Django's server-side session framework, and temporary files on disk. All of these can be cleared by the browser, the server, or your own code at a predictable time.
+
+**Covered in:** Sessions — later in the course.
+
+### Persistent data
+
+Persistent data is the heart of most web applications. It must not be lost, must not be auto-cleared, and should only be deleted when you explicitly choose to delete it.
+
+**Examples:**
+- Blog posts, articles, pages
+- Products and their prices
+- User accounts and profiles
+- Orders, bookings, and transactions
+
+<Callout type="warning">
+    An e-commerce store is only as reliable as its order data. This kind of information must never disappear because a server restarted or a browser tab was closed.
+</Callout>
+
+Persistent data belongs in a **database**. A database is conceptually similar to a set of files on disk, but it gives you:
+
+- An optimised engine for reading and writing data at scale
+- A structured query language (SQL) for filtering, sorting, and joining data
+- Transactional guarantees so partial writes don't corrupt your records
+
+## Decision guide
+
+Use this table to decide where a given piece of data belongs:
+
+| Question | Answer → Category |
+|---|---|
+| Do I only need this for the duration of the current function call? | **Temporary** — use a Python variable |
+| Do I need this across requests, but it's okay if it's eventually cleared? | **Semi-persistent** — use sessions or cookies |
+| Must this data survive indefinitely unless explicitly deleted? | **Persistent** — use a database |
+
+## What's next
+
+Now that you can classify your data, the next step is to represent persistent data in Django using **models** — Python classes that map directly to database tables.
+
+Continue to [Defining Models](/models/defining-models) to see how a `models.py` file becomes a database schema.

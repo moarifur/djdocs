@@ -1,0 +1,208 @@
+import { Callout, FileTree } from 'nextra/components'
+
+# Build a Complete Django Blogging System
+
+A comprehensive guide to building a full-featured, multi-role Django blog application — covering models, authentication, permissions, dashboards, and deployment.
+
+<Callout type="info">
+    This guide is based on the **Tech with Ratan** premium Django project course. By the end, you'll have a portfolio-ready blogging system with role-based access control, a custom dashboard, and a live deployment on Python Anywhere.
+</Callout>
+
+## What You'll Build
+
+- A dynamic homepage with featured posts, recent articles, and category filtering
+- SEO-friendly **slug-based URLs** (no raw primary keys)
+- A **multi-role system**: Super Admin → Manager → Editor
+- A **custom dashboard** where managers and editors manage posts, categories, and users
+- A **comment system** restricted to authenticated users
+- Full **CRUD operations** for posts, categories, and users
+- **Deployment** to Python Anywhere (free tier)
+
+---
+
+## Project File Structure
+
+<FileTree>
+    <FileTree.Folder name="blog" defaultOpen>
+        <FileTree.Folder name="blog_main" defaultOpen>
+            <FileTree.File name="settings.py" />
+            <FileTree.File name="urls.py" />
+            <FileTree.File name="views.py" />
+            <FileTree.File name="forms.py" />
+        </FileTree.Folder>
+        <FileTree.Folder name="blocks">
+            <FileTree.File name="models.py" />
+            <FileTree.File name="views.py" />
+            <FileTree.File name="urls.py" />
+            <FileTree.File name="admin.py" />
+            <FileTree.File name="context_processors.py" />
+        </FileTree.Folder>
+        <FileTree.Folder name="assignments">
+            <FileTree.File name="models.py" />
+            <FileTree.File name="admin.py" />
+        </FileTree.Folder>
+        <FileTree.Folder name="dashboards">
+            <FileTree.File name="views.py" />
+            <FileTree.File name="urls.py" />
+            <FileTree.File name="forms.py" />
+        </FileTree.Folder>
+        <FileTree.Folder name="templates">
+            <FileTree.File name="base.html" />
+            <FileTree.File name="home.html" />
+            <FileTree.File name="register.html" />
+            <FileTree.File name="login.html" />
+            <FileTree.File name="search.html" />
+            <FileTree.File name="post_by_category.html" />
+            <FileTree.File name="blocks.html" />
+            <FileTree.Folder name="dashboard">
+                <FileTree.File name="dashboard.html" />
+                <FileTree.File name="sidebar.html" />
+                <FileTree.File name="categories.html" />
+                <FileTree.File name="add_category.html" />
+                <FileTree.File name="edit_category.html" />
+                <FileTree.File name="post.html" />
+                <FileTree.File name="add_post.html" />
+                <FileTree.File name="edit_post.html" />
+                <FileTree.File name="users.html" />
+                <FileTree.File name="add_user.html" />
+                <FileTree.File name="edit_user.html" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.Folder name="static">
+            <FileTree.Folder name="css">
+                <FileTree.File name="blog.css" />
+            </FileTree.Folder>
+            <FileTree.Folder name="images" />
+        </FileTree.Folder>
+        <FileTree.Folder name="media" />
+        <FileTree.File name="manage.py" />
+        <FileTree.File name="requirements.txt" />
+        <FileTree.File name=".gitignore" />
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Project Setup
+
+Create and enter the project directory, then set up your virtual environment:
+
+```bash
+mkdir blog && cd blog
+python -m venv env
+source venv/Scripts/activate   # macOS/Linux
+venv\Scripts\activate    # Windows
+pip install django
+```
+
+Create the Django project and verify the installation:
+
+```bash
+django-admin startproject blog_main .
+python manage.py runserver
+```
+
+Apply default migrations and create a superuser:
+
+```bash
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+<Callout type="warning">
+    Always run `migrate` before `createsuperuser` — the default auth tables must exist first.
+</Callout>
+
+---
+
+## Homepage & Static Files
+
+Add a home URL in `blog_main/urls.py`:
+
+```python
+from django.contrib import admin
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', views.home, name='home'),
+]
+```
+
+Create `blog_main/views.py`:
+
+```python
+from django.shortcuts import render
+
+def home(request):
+    return render(request, 'home.html')
+```
+
+In `settings.py`, register the templates directory:
+
+```python
+TEMPLATES = [{'DIRS': ['templates'], ...}]
+```
+
+Configure static files:
+
+```python
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'static'
+STATICFILES_DIRS = [BASE_DIR / 'blog_main' / 'static']
+```
+
+Configure media files:
+
+```python
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+```
+
+In `blog_main/urls.py`, serve media in development:
+
+```python
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [...] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
+
+Use static files in templates — load static at the top, then reference assets:
+
+```django
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/blog.css' %}">
+```
+
+---
+
+## Git Setup
+
+<Callout type="tip">
+    Use [gitignore.io](https://gitignore.io) — search **Django** to generate a `.gitignore` automatically.
+</Callout>
+
+Key entries to keep in `.gitignore` during development:
+
+```
+env/
+*.pyc
+__pycache__/
+db.sqlite3
+media/
+```
+
+<Callout type="warning">
+    Remove `db.sqlite3` and `media/` from `.gitignore` **before your deployment commit** so your data and uploads travel to the server with your code.
+</Callout>
+
+```bash
+git init
+git add -A
+git commit -m "Initial commit — homepage created"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/django-blog.git
+git push -u origin main
+```

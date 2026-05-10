@@ -1,0 +1,630 @@
+---
+title: Advanced Blog Features
+description: Add image uploads, a comments system with forms and validation, and a session-based "Read Later" feature to your Django blog.
+---
+
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Advanced Blog Features
+
+In this section you'll extend the blog built in the previous guide with three real-world features:
+
+- **File Uploads** — store post images through Django's `ImageField` instead of hardcoded filenames
+- **Comments** — a user-facing form below each post with server-side validation, error styling, and admin management
+- **Read Later** — a session-based list so every visitor can bookmark posts independently
+
+---
+
+## Part 1 — File Uploads (ImageField)
+
+### Why ImageField?
+
+Until now the `Post` model stored images as plain text filenames pointing at files in `static/`. That approach requires manually placing every image in your source code. `ImageField` lets Django handle storage automatically — it saves the file to disk, stores only the path in the database, and exposes a `.url` property for templates.
+
+### 1.1 — Update the Post Model
+
+Open `blog/models.py` and replace the old `image_name` char field with an `ImageField`:
+
+```python filename="blog/models.py"
+class Post(models.Model):
+    title = models.CharField(max_length=150)
+    excerpt = models.CharField(max_length=200)
+    image = models.ImageField(upload_to="posts", null=True)   # ← changed
+    date = models.DateField(auto_now_add=True)
+    slug = models.SlugField(unique=True)
+    content = models.TextField()
+    author = models.ForeignKey(
+        Author, on_delete=models.SET_NULL, null=True, related_name="posts"
+    )
+    tags = models.ManyToManyField(Tag)
+```
+
+<Callout type="info">
+    `upload_to="posts"` means Django will save files inside `MEDIA_ROOT/posts/`. The `null=True` option allows existing posts (which have no image yet) to stay valid after migration.
+</Callout>
+
+### 1.2 — Configure Media Settings
+
+Add the following two settings to `my_site/settings.py`:
+
+```python filename="my_site/settings.py"
+MEDIA_URL = "/files/"        # URL prefix for serving uploaded files
+MEDIA_ROOT = BASE_DIR / "uploads"  # Folder where files are stored on disk
+```
+
+<Callout type="warning">
+    `MEDIA_URL` and `MEDIA_ROOT` do **not** have to share the same name. `MEDIA_ROOT` is the server-side folder; `MEDIA_URL` is what the browser sees in the `src` attribute.
+</Callout>
+
+Also create the `uploads/` folder at the project root (next to `static/` and `templates/`).
+
+### 1.3 — Install Pillow and Run Migrations
+
+<Steps>
+
+    ### Install Pillow
+
+    `ImageField` requires the Pillow imaging library:
+
+    ```bash
+    pip install Pillow
+    ```
+
+    ### Create and apply migrations
+
+    ```bash
+    python manage.py makemigrations
+    python manage.py migrate
+    ```
+
+</Steps>
+
+### 1.4 — Serve Uploaded Files in Development
+
+Django does not expose your file system to the outside world by default. Wire up media serving in the project-level `urls.py`:
+
+```python filename="my_site/urls.py"
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path("", include("blog.urls")),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
+
+<Callout type="warning">
+    The `+ static(...)` call is **development only**. In production your web server (nginx, etc.) serves media files directly and this line should be removed.
+</Callout>
+
+### 1.5 — Update Templates
+
+Any template that displayed `{% static 'blog/images/'|add:post.image %}` must switch to the `ImageField` URL:
+
+```html filename="blog/templates/blog/includes/post.html"
+{# No longer need {% load static %} just for the image #}
+<img src="{{ post.image.url }}" alt="{{ post.title }}" />
+```
+
+```html filename="blog/templates/blog/post-detail.html"
+<img src="{{ post.image.url }}" alt="{{ post.title }}" />
+```
+
+<Callout type="info">
+    `{{ post.image.url }}` resolves to something like `/files/posts/mountains.jpg` — Django builds the full URL from `MEDIA_URL` + the stored path.
+</Callout>
+
+---
+
+## Part 2 — Converting Views to Class-Based Views
+
+Before adding comments the course converts the three function views to class-based equivalents. This is optional — function views continue to work — but it's good practice and sets up a cleaner base for the more complex comment logic ahead.
+
+<Tabs items={['StartingPageView', 'AllPostsView', 'SinglePostView']}>
+    <Tabs.Tab>
+
+        ```python filename="blog/views.py"
+        from django.views.generic import ListView
+
+        class StartingPageView(ListView):
+        template_name = "blog/index.html"
+        model = Post
+        ordering = ["-date"]
+        context_object_name = "posts"
+
+        def get_queryset(self):
+        queryset = super().get_queryset()
+        return queryset[:3]
+        ```
+
+        <Callout type="info">
+            `context_object_name = "posts"` keeps the template variable name consistent with the old function view. Without it Django defaults to `object_list`.
+        </Callout>
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ```python filename="blog/views.py"
+        class AllPostsView(ListView):
+        template_name = "blog/all-posts.html"
+        model = Post
+        ordering = ["-date"]
+        context_object_name = "all_posts"
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        ```python filename="blog/views.py"
+        from django.views.generic import DetailView
+
+        class SinglePostView(DetailView):
+        template_name = "blog/post-detail.html"
+        model = Post
+
+        def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["post_tags"] = self.object.tags.all()
+        return context
+        ```
+
+        <Callout type="info">
+            `DetailView` automatically looks up the post by `slug` when the URL contains a `<slug:slug>` segment. It also raises a 404 automatically if no match is found.
+        </Callout>
+
+    </Tabs.Tab>
+</Tabs>
+
+Update `blog/urls.py` to use the class-based views:
+
+```python filename="blog/urls.py"
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("", views.StartingPageView.as_view(), name="starting-page"),
+    path("posts", views.AllPostsView.as_view(), name="posts-page"),
+    path("posts/<slug:slug>", views.SinglePostView.as_view(), name="post-detail-page"),
+]
+```
+
+---
+
+## Part 3 — Comments
+
+### 3.1 — The Comment Model
+
+Add a `Comment` model to `blog/models.py`. A comment belongs to one post (one-to-many), so the foreign key lives on the comment side:
+
+```python filename="blog/models.py"
+class Comment(models.Model):
+    user_name = models.CharField(max_length=120)
+    user_email = models.EmailField()
+    text = models.TextField(max_length=400)
+    post = models.ForeignKey(
+        Post, on_delete=models.CASCADE, related_name="comments"
+    )
+```
+
+<Callout type="info">
+    `related_name="comments"` lets you access all comments for a post via `post.comments.all()` — you'll use this in the view and template later.
+</Callout>
+
+Run migrations:
+
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+
+### 3.2 — The Comment ModelForm
+
+Create `blog/forms.py`:
+
+```python filename="blog/forms.py"
+from django import forms
+from .models import Comment
+
+class CommentForm(forms.ModelForm):
+    class Meta:
+        model = Comment
+        exclude = ["post"]      # post is set programmatically, not by the user
+        labels = {
+            "user_name": "Your Name",
+            "user_email": "Your Email",
+            "text": "Your Comment",
+        }
+```
+
+<Callout type="info">
+    Using `exclude = ["post"]` rather than `fields = "__all__"` ensures the user never sees (or manipulates) the post relationship field.
+</Callout>
+
+### 3.3 — Restructuring SinglePostView to Handle POST
+
+`DetailView` only handles GET requests. Since we now need to handle form submission (POST), switch `SinglePostView` to inherit from the generic `View` and add explicit `get` and `post` methods:
+
+```python filename="blog/views.py"
+from django.views import View
+from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponseRedirect
+from django.urls import reverse
+from .models import Post
+from .forms import CommentForm
+
+class SinglePostView(View):
+
+    def is_stored_post(self, request, post_id):
+        stored_posts = request.session.get("stored_posts")
+        if stored_posts is not None:
+            return post_id in stored_posts
+        return False
+
+    def get(self, request, slug):
+        post = get_object_or_404(Post, slug=slug)
+        context = {
+            "post": post,
+            "post_tags": post.tags.all(),
+            "comment_form": CommentForm(),
+            "comments": post.comments.all().order_by("-id"),
+            "saved_for_later": self.is_stored_post(request, post.id),
+        }
+        return render(request, "blog/post-detail.html", context)
+
+    def post(self, request, slug):
+        comment_form = CommentForm(request.POST)
+        post = get_object_or_404(Post, slug=slug)
+
+        if comment_form.is_valid():
+            comment = comment_form.save(commit=False)   # don't hit DB yet
+            comment.post = post                         # attach the post
+            comment.save()                              # now save to DB
+            return HttpResponseRedirect(
+                reverse("post-detail-page", args=[slug])
+            )
+
+        context = {
+            "post": post,
+            "post_tags": post.tags.all(),
+            "comment_form": comment_form,   # contains errors + user input
+            "comments": post.comments.all().order_by("-id"),
+            "saved_for_later": self.is_stored_post(request, post.id),
+        }
+        return render(request, "blog/post-detail.html", context)
+```
+
+<Callout type="info">
+    `commit=False` creates a model instance without writing to the database, giving you a chance to set the `post` field before calling `save()` manually. This is the standard pattern for model forms that exclude required foreign-key fields.
+</Callout>
+
+### 3.4 — Comment Form in the Template
+
+Add the comment form section below the post content in `post-detail.html`:
+
+```html filename="blog/templates/blog/post-detail.html"
+{% if comment_form.errors %}
+<div id="alert">
+    <p>Saving the comment failed. Please check the comment form below the post and fix your errors.</p>
+    <a href="#comment-form">Fix</a>
+</div>
+{% endif %}
+
+{# ... existing post content ... #}
+
+<section id="comments">
+    <ul>
+        {% for comment in comments %}
+        <li>
+            <h2>{{ comment.user_name }}</h2>
+            <p>{{ comment.text|linebreaks }}</p>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+
+<section id="comment-form">
+    <h2>Your Comment</h2>
+    <form action="{% url 'post-detail-page' post.slug %}" method="POST">
+        {% csrf_token %}
+        {% for field in comment_form %}
+        <div class="form-control {% if field.errors %}invalid{% endif %}">
+            {{ field.label_tag }}
+            {{ field }}
+            {{ field.errors }}
+        </div>
+        {% endfor %}
+        <button type="submit">Save Comment</button>
+    </form>
+</section>
+```
+
+<Callout type="warning">
+    Always include `{% csrf_token %}` inside every form that uses `method="POST"`. Without it Django will reject the submission with a 403 Forbidden error.
+</Callout>
+
+### 3.5 — Comment Form Validation Styles
+
+Add these rules to `static/css/post-detail.css` (or a dedicated `comments.css`):
+
+```css filename="static/css/post-detail.css"
+/* Error alert box */
+#alert {
+    width: 90%;
+    max-width: 40rem;
+    margin: 3rem auto 0;
+    border: 1px solid #b40e0e;
+    background-color: #fddddd;
+    padding: 1rem;
+    border-radius: 6px;
+}
+
+/* Form layout */
+.form-control { margin-bottom: 1rem; }
+.form-control label { display: block; font-weight: bold; margin-bottom: 0.5rem; }
+.form-control input,
+.form-control textarea {
+    display: block;
+    width: 100%;
+    font: inherit;
+    padding: 0.25rem;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+
+/* Invalid state */
+.form-control.invalid label   { color: #b40e0e; }
+.form-control.invalid input,
+.form-control.invalid textarea {
+    border-color: #b40e0e;
+    background-color: #fde8e8;
+}
+
+/* Error message list */
+.errorlist {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0;
+    color: #b40e0e;
+}
+```
+
+### 3.6 — Register Comment in Admin
+
+Add `Comment` to `blog/admin.py` so you can moderate user comments from the admin panel:
+
+```python filename="blog/admin.py"
+from django.contrib import admin
+from .models import Post, Author, Tag, Comment
+
+class CommentAdmin(admin.ModelAdmin):
+    list_display = ("user_name", "post")
+
+admin.site.register(Comment, CommentAdmin)
+
+# Also add __str__ to Post so the admin shows post titles, not "Post object"
+```
+
+Add a `__str__` method to the `Post` model:
+
+```python filename="blog/models.py"
+class Post(models.Model):
+    # ... fields ...
+
+    def __str__(self):
+        return self.title
+```
+
+---
+
+## Part 4 — Read Later (Sessions)
+
+The Read Later feature lets every visitor bookmark posts without a user account. Django sessions are perfect here: they're automatically per-visitor and managed transparently.
+
+### 4.1 — Add the Read Later Button
+
+In `post-detail.html`, add a form below the tags section:
+
+```html filename="blog/templates/blog/post-detail.html"
+<div id="read-later">
+    <form action="{% url 'read-later' %}" method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="post_id" value="{{ post.id }}" />
+        <button type="submit">
+            {% if saved_for_later %}
+                Remove from Read Later List
+            {% else %}
+                Read Later
+            {% endif %}
+        </button>
+    </form>
+</div>
+```
+
+### 4.2 — ReadLaterView
+
+Add a new view to `blog/views.py`:
+
+```python filename="blog/views.py"
+class ReadLaterView(View):
+
+    def get(self, request):
+        stored_posts = request.session.get("stored_posts")
+        context = {}
+
+        if not stored_posts or len(stored_posts) == 0:
+            context["posts"] = []
+            context["has_posts"] = False
+        else:
+            posts = Post.objects.filter(id__in=stored_posts)
+            context["posts"] = posts
+            context["has_posts"] = True
+
+        return render(request, "blog/stored-posts.html", context)
+
+    def post(self, request):
+        stored_posts = request.session.get("stored_posts")
+
+        if stored_posts is None:
+            stored_posts = []
+
+        post_id = int(request.POST["post_id"])
+
+        if post_id not in stored_posts:
+            stored_posts.append(post_id)
+        else:
+            stored_posts.remove(post_id)
+
+        request.session["stored_posts"] = stored_posts   # ← must write back!
+        return HttpResponseRedirect("/")
+```
+
+<Callout type="warning">
+    You **must** write back to `request.session["stored_posts"]` after modifying the list. Reading from the session and mutating the list in place is not enough — Django only marks the session as modified when you assign to a key.
+</Callout>
+
+<Callout type="info">
+    `Post.objects.filter(id__in=stored_posts)` uses Django's `__in` lookup to fetch only the posts whose IDs are in the stored list — a single efficient SQL query.
+</Callout>
+
+### 4.3 — Wire Up the URL
+
+Add the read-later path to `blog/urls.py`:
+
+```python filename="blog/urls.py"
+urlpatterns = [
+    path("", views.StartingPageView.as_view(), name="starting-page"),
+    path("posts", views.AllPostsView.as_view(), name="posts-page"),
+    path("posts/<slug:slug>", views.SinglePostView.as_view(), name="post-detail-page"),
+    path("read-later", views.ReadLaterView.as_view(), name="read-later"),  # ← new
+]
+```
+
+### 4.4 — Stored Posts Template
+
+Create `blog/templates/blog/stored-posts.html`:
+
+```html filename="blog/templates/blog/stored-posts.html"
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Stored Posts{% endblock %}
+
+{% block css_files %}
+<link rel="stylesheet" href="{% static 'css/stored-posts.css' %}" />
+{% endblock %}
+
+{% block content %}
+<section id="stored-posts">
+    {% if has_posts %}
+    <ul>
+        {% for post in posts %}
+        <li>
+            <a href="{% url 'post-detail-page' post.slug %}">{{ post.title }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>You haven't saved any posts for later.</p>
+    {% endif %}
+</section>
+{% endblock %}
+```
+
+### 4.5 — Add Nav Link
+
+Add a "Stored Posts" link to `templates/base.html`:
+
+```html filename="templates/base.html"
+<nav>
+    <a href="{% url 'posts-page' %}">All Posts</a>
+    <a href="{% url 'read-later' %}">Stored Posts</a>
+</nav>
+```
+
+### 4.6 — Stored Posts Styles
+
+Create `static/css/stored-posts.css`:
+
+```css filename="static/css/stored-posts.css"
+#stored-posts {
+    width: 90%;
+    max-width: 30rem;
+    margin: 8rem auto 3rem;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    background-color: white;
+}
+
+#stored-posts ul { list-style: none; margin: 0; padding: 0; }
+
+#stored-posts li a {
+    display: block;
+    padding: 1rem;
+    border: 1px solid #ccc;
+    margin: 1rem 0;
+    text-decoration: none;
+    color: #333;
+    font-weight: bold;
+    border-radius: 6px;
+}
+
+#stored-posts li a:hover,
+#stored-posts li a:active { background-color: #f0ece6; }
+```
+
+---
+
+## Updated File Tree
+
+<FileTree>
+    <FileTree.Folder name="my_site" defaultOpen>
+        <FileTree.Folder name="blog" defaultOpen>
+            <FileTree.File name="admin.py" />
+            <FileTree.File name="forms.py" />
+            <FileTree.File name="models.py" />
+            <FileTree.File name="urls.py" />
+            <FileTree.File name="views.py" />
+            <FileTree.Folder name="templates">
+                <FileTree.Folder name="blog">
+                    <FileTree.File name="index.html" />
+                    <FileTree.File name="all-posts.html" />
+                    <FileTree.File name="post-detail.html" />
+                    <FileTree.File name="stored-posts.html" />
+                    <FileTree.Folder name="includes">
+                        <FileTree.File name="post.html" />
+                    </FileTree.Folder>
+                </FileTree.Folder>
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.Folder name="static">
+            <FileTree.Folder name="css">
+                <FileTree.File name="app.css" />
+                <FileTree.File name="post-detail.css" />
+                <FileTree.File name="stored-posts.css" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.Folder name="uploads">
+            <FileTree.Folder name="posts">
+                <FileTree.File name="(uploaded images go here)" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.Folder name="templates">
+            <FileTree.File name="base.html" />
+            <FileTree.File name="404.html" />
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Summary
+
+| Feature | Key concepts |
+|---------|-------------|
+| **Image Upload** | `ImageField(upload_to=...)`, `MEDIA_ROOT`, `MEDIA_URL`, `static()` in `urls.py`, `{{ post.image.url }}` in templates |
+| **Class-Based Views** | `ListView` (list + ordering + slicing), `DetailView` (slug lookup + auto 404), generic `View` (custom `get`/`post` methods) |
+| **Comments** | `ModelForm` with `exclude`, `commit=False` to attach FK before saving, `{% csrf_token %}`, conditional `invalid` CSS class, `comment_form.errors` for the alert box |
+| **Read Later** | `request.session.get(key)`, write-back with `request.session[key] = value`, `filter(id__in=list)`, toggling add/remove in the same POST handler |

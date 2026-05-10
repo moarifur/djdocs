@@ -1,0 +1,236 @@
+---
+title: Configuring the Django Admin Form
+description: Learn how to use ModelAdmin classes to control field display, read-only fields, and pre-populated fields in the Django admin interface.
+---
+
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Configuring the Django Admin Form
+
+Django gives you two ways to control how fields appear in the admin form. The first is directly on the model field (e.g. `editable=False`). The second — and more powerful — is through a dedicated **ModelAdmin class** inside your `admin.py` file.
+
+<Callout type="info">
+    Use the `ModelAdmin` approach whenever you need advanced control: choosing which fields appear, marking fields as read-only, or pre-populating fields based on other inputs.
+</Callout>
+
+---
+
+## File Structure
+
+Your app should already have an `admin.py` where your model is registered. All the configuration below lives there.
+
+<FileTree>
+    <FileTree.Folder name="myapp" defaultOpen>
+        <FileTree.File name="models.py" />
+        <FileTree.File name="admin.py" active />
+        <FileTree.File name="views.py" />
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Creating a ModelAdmin Class
+
+<Steps>
+
+    ### Open `admin.py`
+
+    Navigate to the file where your model (e.g. `Book`) is already registered with `admin.site.register`.
+
+    ### Define the ModelAdmin class
+
+    Add a new class named after your model, following the convention `<ModelName>Admin`. It must extend `admin.ModelAdmin`.
+
+    ```python filename="admin.py"
+    from django.contrib import admin
+    from .models import Book
+
+    class BookAdmin(admin.ModelAdmin):
+    pass  # configuration goes here
+
+    admin.site.register(Book, BookAdmin)
+    ```
+
+    <Callout type="warning">
+        The naming convention `BookAdmin` is not enforced by Django, but it is **strongly recommended** for clarity and consistency.
+    </Callout>
+
+    ### Pass the class to `register`
+
+    Supply your new `BookAdmin` class as the **second argument** to `admin.site.register()`. This tells Django to use your class when rendering the admin form for `Book`.
+
+</Steps>
+
+---
+
+## Configuring Read-Only Fields
+
+Use the `readonly_fields` property to display fields in the admin form without allowing edits.
+
+```python filename="admin.py" {3}
+class BookAdmin(admin.ModelAdmin):
+readonly_fields = ("slug",)
+```
+
+<Callout type="default">
+    The value must be a **tuple**. Always add a trailing comma when there's only one item — e.g. `("slug",)` — otherwise Python treats it as a plain string inside parentheses.
+</Callout>
+
+### Comparison: `editable=False` vs `readonly_fields`
+
+<Tabs items={['readonly_fields (admin.py)', 'editable=False (models.py)']}>
+    <Tabs.Tab>
+        ```python filename="admin.py"
+        class BookAdmin(admin.ModelAdmin):
+        readonly_fields = ("slug",)
+        ```
+        - Field still **appears** in the admin form
+        - Displayed as non-editable text
+        - Does **not** affect the model itself
+        - Preferred for admin-only read-only behaviour
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```python filename="models.py"
+        slug = models.SlugField(editable=False)
+        ```
+        - Field is **hidden** from the admin form entirely by default
+        - Must be combined with `readonly_fields` to show it
+        - Affects the model globally (not just admin)
+    </Tabs.Tab>
+</Tabs>
+
+<Callout type="tip">
+    You can safely remove `editable=False` from your model once you've added the field to `readonly_fields`. The `readonly_fields` setting alone is sufficient to prevent editing in the admin.
+</Callout>
+
+---
+
+## Pre-Populating Fields
+
+Use `prepopulated_fields` to automatically fill a field as the user types in another field. This is commonly used to generate slugs from a title in real time.
+
+```python filename="admin.py" {3-5}
+class BookAdmin(admin.ModelAdmin):
+prepopulated_fields = {
+"slug": ("title",)
+}
+```
+
+The dictionary structure is:
+
+| Key | Value |
+|---|---|
+| The field to be filled (e.g. `"slug"`) | A tuple of source fields (e.g. `("title",)`) |
+
+<Callout type="default">
+    Django inspects the target field's type at runtime. For a `SlugField`, it automatically applies `slugify()` to the source field values. No extra configuration is needed.
+</Callout>
+
+---
+
+## Common Pitfall: `prepopulated_fields` + `readonly_fields` Conflict
+
+<Callout type="error">
+    **Error:** `Key 'slug' not found in BookForm. Choices are: author, is_bestselling, rating, title.`
+
+    This happens when the same field appears in **both** `readonly_fields` and `prepopulated_fields`.
+</Callout>
+
+A field in `readonly_fields` is excluded from the editable form, so `prepopulated_fields` cannot reference it.
+
+**Fix:** Remove the field from `readonly_fields` when using it in `prepopulated_fields`.
+
+<Tabs items={['❌ Broken', '✅ Correct']}>
+    <Tabs.Tab>
+        ```python filename="admin.py"
+        class BookAdmin(admin.ModelAdmin):
+        readonly_fields = ("slug",)       # slug is excluded from form
+        prepopulated_fields = {"slug": ("title",)}  # ❌ can't find slug!
+        ```
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```python filename="admin.py"
+        class BookAdmin(admin.ModelAdmin):
+        # readonly_fields does NOT include "slug" anymore
+        prepopulated_fields = {"slug": ("title",)}  # ✅ works correctly
+        ```
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Removing a Custom `save()` Method
+
+Once `prepopulated_fields` is handling slug generation in the admin, you may no longer need a custom `save()` override in your model — **if** the only thing it was doing was slugifying the title.
+
+<Callout type="tip">
+    Keeping `prepopulated_fields` and removing the `save()` override also gives your users the flexibility to **manually adjust the slug** before saving, which is often desirable.
+</Callout>
+
+### Before
+
+```python filename="models.py"
+from django.utils.text import slugify
+
+class Book(models.Model):
+title = models.CharField(max_length=200)
+slug = models.SlugField()
+
+def save(self, *args, **kwargs):
+self.slug = slugify(self.title)  # ← this is now handled by the admin
+super().save(*args, **kwargs)
+```
+
+### After
+
+```python filename="models.py"
+class Book(models.Model):
+title = models.CharField(max_length=200)
+slug = models.SlugField()
+# save() override removed — slug is managed via prepopulated_fields in admin
+```
+
+---
+
+## Built-In Admin Validation
+
+Even with the slug editable in the admin form, Django protects you from invalid input.
+
+<Callout type="info">
+    The Django admin automatically validates form inputs based on your **model field types** and any custom **validators** you've defined. For example, entering a value like `"not a valid slug!!!"` into a `SlugField` will trigger a validation error — no extra code required.
+</Callout>
+
+This means:
+- Users can safely edit pre-populated slugs
+- Invalid slugs are rejected at save time
+- Your data integrity is preserved by the framework
+
+---
+
+## Complete Example
+
+```python filename="admin.py"
+from django.contrib import admin
+from .models import Book
+
+class BookAdmin(admin.ModelAdmin):
+prepopulated_fields = {
+"slug": ("title",)
+}
+
+admin.site.register(Book, BookAdmin)
+```
+
+```python filename="models.py"
+from django.db import models
+
+class Book(models.Model):
+title = models.CharField(max_length=200)
+slug = models.SlugField(unique=True)
+author = models.CharField(max_length=200)
+rating = models.IntegerField()
+is_bestselling = models.BooleanField(default=False)
+
+def __str__(self):
+return self.title
+```

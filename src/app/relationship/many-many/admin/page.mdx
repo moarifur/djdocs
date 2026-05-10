@@ -1,0 +1,106 @@
+---
+title: Many-Many Relationship in Django Admin
+---
+
+import { Callout, Steps, Tabs, FileTree, Cards } from 'nextra/components'
+
+# Django Admin Relations
+
+This guide shows how to register a model in the Django admin, improve its display name, customize its string representation, and manage a relationship field from the admin panel.
+
+<Callout type="info">
+    The examples below assume you already have `Country` and `Book` models in your project.
+</Callout>
+
+## Register the model
+
+Use `admin.py` to import the model and register it with the admin site so it appears in the dashboard.
+
+<Steps>
+    ### Open `admin.py`
+
+    Add the `Country` model import.
+
+    ```python
+    from django.contrib import admin
+    from .models import Country
+    ```
+
+    ### Register the model
+
+    Register `Country` with the admin site.
+
+    ```python
+    admin.site.register(Country)
+    ```
+
+    ### Reload the server
+
+    Restart the development server and refresh the admin panel to confirm the model appears.
+</Steps>
+
+## Improve the plural name
+
+By default, Django appends an `s` to the model name in the admin interface. To display `Countries` instead of `Countrys`, define `verbose_name_plural` inside the model's `Meta` class.
+
+<Tabs items={['models.py', 'Result']}>
+    <Tabs.Tab>
+
+        ```python
+        class Country(models.Model):
+        name = models.CharField(max_length=100)
+
+        class Meta:
+        verbose_name_plural = 'Countries'
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab>
+
+        The admin list now shows **Countries** instead of the default pluralization.
+
+    </Tabs.Tab>
+</Tabs>
+
+## Customize display text
+
+If you want the admin to display a cleaner label for each country object, override `__str__` on the model.
+
+```python
+class Country(models.Model):
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        verbose_name_plural = 'Countries'
+
+    def __str__(self):
+        return self.name
+```
+
+This makes the admin show the country name directly, such as `Germany`.
+
+## Manage book relations
+
+When a book has a relation to one or more countries, the admin form uses a multi-select field so you can assign multiple values at once.
+
+<FileTree>
+    <FileTree.File name="admin.py" />
+    <FileTree.File name="models.py" />
+    <FileTree.Folder name="books">
+        <FileTree.File name="Book model" />
+    </FileTree.Folder>
+    <FileTree.Folder name="countries">
+        <FileTree.File name="Country model" />
+    </FileTree.Folder>
+</FileTree>
+
+<Cards>
+    <Cards.Card href="#register-the-model" title="Register the model" />
+    <Cards.Card href="#improve-the-plural-name" title="Improve the plural name" />
+    <Cards.Card href="#customize-display-text" title="Customize display text" />
+    <Cards.Card href="#manage-book-relations" title="Manage book relations" />
+</Cards>
+
+## What happens in the admin
+
+After registering the model, the admin panel lets you view and edit countries directly. After changing the plural name and `__str__`, the list becomes easier to read and the object labels become more useful. For the book relationship, the admin provides a convenient multi-select UI so you can map one book to multiple countries.

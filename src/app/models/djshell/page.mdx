@@ -1,0 +1,126 @@
+---
+title: Working with Data Using the Django Shell
+description: Learn how to insert and retrieve database records using Django's interactive shell and ORM.
+---
+
+import { Callout, Steps, Tabs } from 'nextra/components'
+
+# Working with Data Using the Django Shell
+
+After creating and running your migrations, the next step is to interact with your database. While you'll eventually do this inside your `views.py` and other Python files, the **Django interactive shell** is a great way to explore database operations without building a full view first.
+
+---
+
+## Opening the Django Shell
+
+In your terminal, navigate to your project folder and run:
+
+```bash
+python manage.py shell
+```
+
+This launches an interactive Python interpreter that is pre-configured for your Django project, giving you direct access to your models and database.
+
+---
+
+## Importing Your Model
+
+Once inside the shell, import the model you want to work with. For example, if your app is called `book_outlet` and your model is `Book`:
+
+```python
+from book_outlet.models import Book
+```
+
+---
+
+## Creating a New Record
+
+<Steps>
+
+    ### Instantiate the model
+
+    Create a new object by passing your field values as keyword arguments to the model constructor:
+
+    ```python
+    harry_potter = Book(title="Harry Potter 1 - The Philosopher's Stone", rating=5)
+    ```
+
+    <Callout type="info">
+        At this point, the object **only exists in Python memory** — nothing has been written to the database yet.
+    </Callout>
+
+    ### Save to the database
+
+    Call the `.save()` method on your object to persist it:
+
+    ```python
+    harry_potter.save()
+    ```
+
+    Behind the scenes, Django constructs and executes the appropriate SQL `INSERT` query for you — no raw SQL needed.
+
+</Steps>
+
+---
+
+## How Model Instantiation Works
+
+Your `Book` model class inherits from Django's built-in `models.Model`. This gives every instance access to several built-in methods — most importantly, `.save()`.
+
+```python
+# models.py (for reference)
+from django.db import models
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    rating = models.IntegerField()
+```
+
+| Field | Type | Passed as |
+|---|---|---|
+| `title` | `CharField` | A string value |
+| `rating` | `IntegerField` | An integer value |
+
+Django uses these field definitions to map your Python object to the correct database columns automatically.
+
+---
+
+## Inserting Multiple Records
+
+You can repeat the pattern to add more entries:
+
+<Tabs items={['Harry Potter', 'Lord of the Rings']}>
+    <Tabs.Tab>
+        ```python
+        harry_potter = Book(title="Harry Potter 1 - The Philosopher's Stone", rating=5)
+        harry_potter.save()
+        ```
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```python
+        lord_of_the_rings = Book(title="Lord of the Rings", rating=4)
+        lord_of_the_rings.save()
+        ```
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Summary
+
+| Step | Code | Effect |
+|---|---|---|
+| Open shell | `python manage.py shell` | Starts interactive Django shell |
+| Import model | `from app.models import Book` | Makes the model available |
+| Create object | `Book(title="...", rating=5)` | Creates Python object only |
+| Save to DB | `harry_potter.save()` | Writes the record to the database |
+
+<Callout type="warning">
+    Calling `Book(...)` alone does **not** touch the database. You must call `.save()` explicitly to persist the record.
+</Callout>
+
+---
+
+## Next Steps
+
+Now that you know how to insert records, the next step is **querying** them — fetching, filtering, and displaying data from your database inside your Django views.

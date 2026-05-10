@@ -1,0 +1,297 @@
+import { Callout, Tabs } from 'nextra/components'
+
+# Dashboard & CRUD
+
+## Dashboard App Setup
+
+```bash
+python manage.py startapp dashboards
+```
+
+Register in `settings.py`, then add URL routing in `blog_main/urls.py`:
+
+```python
+path('dashboard/', include('dashboards.urls')),
+```
+
+Create `dashboards/urls.py`:
+
+```python
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('',                            views.dashboard,       name='dashboard'),
+    path('categories/',                 views.categories,      name='categories'),
+    path('categories/add/',             views.add_category,    name='add_category'),
+    path('categories/edit/<int:pk>/',   views.edit_category,   name='edit_category'),
+    path('categories/delete/<int:pk>/', views.delete_category, name='delete_category'),
+    path('post/',                       views.post,            name='post'),
+    path('post/add/',                   views.add_post,        name='add_post'),
+    path('post/edit/<int:pk>/',         views.edit_post,       name='edit_post'),
+    path('post/delete/<int:pk>/',       views.delete_post,     name='delete_post'),
+    path('users/',                      views.users,           name='users'),
+    path('users/add/',                  views.add_user,        name='add_user'),
+    path('users/edit/<int:pk>/',        views.edit_user,       name='edit_user'),
+    path('users/delete/<int:pk>/',      views.delete_user,     name='delete_user'),
+]
+```
+
+---
+
+## Reusable Sidebar
+
+Extract the sidebar into `templates/dashboard/sidebar.html`, then include it in every dashboard page:
+
+```django
+{% include 'dashboard/sidebar.html' %}
+```
+
+Highlight the active tab dynamically:
+
+```django
+<a href="{% url 'dashboard' %}"
+   class="nav-link {% if '/dashboard/' == request.path %}bg-warning{% endif %}">
+  Dashboard
+</a>
+
+<a href="{% url 'categories' %}"
+   class="nav-link {% if 'categories' in request.path %}bg-warning{% endif %}">
+  Categories
+</a>
+
+<a href="{% url 'post' %}"
+   class="nav-link {% if 'post' in request.path %}bg-warning{% endif %}">
+  Posts
+</a>
+
+{% if perms.auth.view_user %}
+  <a href="{% url 'users' %}"
+     class="nav-link {% if 'users' in request.path %}bg-warning{% endif %}">
+    Users
+  </a>
+{% endif %}
+```
+
+---
+
+## Dashboard Stats View
+
+```python
+from django.contrib.auth.decorators import login_required
+from blocks.models import Blog, Category
+
+@login_required(login_url='login')
+def dashboard(request):
+    context = {
+        'category_count': Category.objects.all().count(),
+        'blog_count':     Blog.objects.all().count(),
+    }
+    return render(request, 'dashboard/dashboard.html', context)
+```
+
+---
+
+## Category CRUD
+
+### Forms
+
+```python
+# dashboards/forms.py
+from django import forms
+from blocks.models import Category
+
+class CategoryForm(forms.ModelForm):
+    class Meta:
+        model  = Category
+        fields = '__all__'
+```
+
+### Views
+
+```python
+from django.shortcuts import render, redirect, get_object_or_404
+from .forms import CategoryForm
+from blocks.models import Category
+
+def categories(request):
+    return render(request, 'dashboard/categories.html')
+
+def add_category(request):
+    if request.method == 'POST':
+        form = CategoryForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('categories')
+    else:
+        form = CategoryForm()
+    return render(request, 'dashboard/add_category.html', {'form': form})
+
+def edit_category(request, pk):
+    category = get_object_or_404(Category, pk=pk)
+    if request.method == 'POST':
+        form = CategoryForm(request.POST, instance=category)
+        if form.is_valid():
+            form.save()
+            return redirect('categories')
+    else:
+        form = CategoryForm(instance=category)
+    return render(request, 'dashboard/edit_category.html', {'form': form, 'category': category})
+
+def delete_category(request, pk):
+    get_object_or_404(Category, pk=pk).delete()
+    return redirect('categories')
+```
+
+---
+
+## Blog Post CRUD
+
+### Form — exclude `author` and `slug`
+
+```python
+from blocks.models import Blog
+
+class BlogPostForm(forms.ModelForm):
+    class Meta:
+        model  = Blog
+        fields = ['title', 'category', 'featured_image',
+                  'short_description', 'blog_body', 'status', 'is_featured']
+```
+
+<Callout type="warning">
+    Never expose `author` or `slug` to editors. The author is set to the logged-in user automatically, and the slug is generated from the title in code.
+</Callout>
+
+### Add Post with auto-slug
+
+```python
+from django.template.defaultfilters import slugify
+
+def add_post(request):
+    if request.method == 'POST':
+        form = BlogPostForm(request.POST, request.FILES)
+        if form.is_valid():
+            post        = form.save(commit=False)   # hold — don't write yet
+            post.author = request.user
+            post.save()                             # save to get an ID
+            title      = form.cleaned_data['title']
+            post.slug  = slugify(title) + '-' + str(post.id)
+            post.save()
+            return redirect('post')
+    else:
+        form = BlogPostForm()
+    return render(request, 'dashboard/add_post.html', {'form': form})
+```
+
+<Callout type="warning">
+    Any form containing an image or file upload **must** have `enctype="multipart/form-data"` on the `<form>` tag, and pass `request.FILES` alongside `request.POST` in the view.
+</Callout>
+
+The add post template form tag:
+
+```django
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form|crispy }}
+    <button type="submit" class="btn btn-warning">Submit</button>
+</form>
+```
+
+### Edit Post
+
+```python
+def edit_post(request, pk):
+post = get_object_or_404(Blog, pk=pk)
+if request.method == 'POST':
+form = BlogPostForm(request.POST, request.FILES, instance=post)
+if form.is_valid():
+post      = form.save(commit=False)
+title     = form.cleaned_data['title']
+post.slug = slugify(title) + '-' + str(post.id)
+post.save()
+return redirect('post')
+else:
+form = BlogPostForm(instance=post)
+return render(request, 'dashboard/edit_post.html', {'form': form, 'post': post})
+```
+
+### Delete Post
+
+```python
+def delete_post(request, pk):
+get_object_or_404(Blog, pk=pk).delete()
+return redirect('post')
+```
+
+---
+
+## User Management (Manager only)
+
+<Tabs>
+    <Tabs.Tab label="Add User Form">
+
+        ```python
+        from django.contrib.auth.forms import UserCreationForm
+        from django.contrib.auth.models import User
+
+        class AddUserForm(UserCreationForm):
+        class Meta:
+        model  = User
+        fields = ['username', 'email', 'first_name', 'last_name',
+        'is_active', 'is_staff', 'is_superuser',
+        'groups', 'user_permissions']
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab label="Edit User Form">
+
+        ```python
+        class EditUserForm(forms.ModelForm):
+        """No password fields — passwords are managed by the user themselves."""
+        class Meta:
+        model  = User
+        fields = ['username', 'email', 'first_name', 'last_name',
+        'is_active', 'is_staff', 'is_superuser',
+        'groups', 'user_permissions']
+        ```
+
+    </Tabs.Tab>
+    <Tabs.Tab label="Views">
+
+        ```python
+        from django.contrib.auth.models import User
+        from .forms import AddUserForm, EditUserForm
+
+        def users(request):
+        return render(request, 'dashboard/users.html', {'users': User.objects.all()})
+
+        def add_user(request):
+        if request.method == 'POST':
+        form = AddUserForm(request.POST)
+        if form.is_valid():
+        form.save()
+        return redirect('users')
+        else:
+        form = AddUserForm()
+        return render(request, 'dashboard/add_user.html', {'form': form})
+
+        def edit_user(request, pk):
+        user = get_object_or_404(User, pk=pk)
+        form = EditUserForm(request.POST or None, instance=user)
+        if form.is_valid():
+        form.save()
+        return redirect('users')
+        return render(request, 'dashboard/edit_user.html', {'form': form})
+
+        def delete_user(request, pk):
+        get_object_or_404(User, pk=pk).delete()
+        return redirect('users')
+        ```
+
+    </Tabs.Tab>
+</Tabs>
+
+<Callout>
+    Use `EditUserForm` (based on `ModelForm`) for editing — not `UserCreationForm`. The creation form requires password fields, which you don't want when merely updating a user's profile.
+</Callout>

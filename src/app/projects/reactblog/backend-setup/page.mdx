@@ -1,0 +1,282 @@
+import { Callout, Steps, Tabs } from 'nextra/components'
+
+# Backend Setup
+
+This page covers the Express 5 + MongoDB backend: project bootstrap, app configuration, database connection, Mongoose models, and all API route definitions.
+
+---
+
+## 1. Bootstrap
+
+```bash
+cd backend
+npm init -y
+npm install express mongoose cors dotenv
+```
+
+Add `"type": "module"` to `package.json` to enable ESM imports, then start with watch mode (Node 18+):
+
+```bash
+node --env-file=.env --watch index.js
+```
+
+---
+
+## 2. Express App
+
+```js
+// backend/index.js
+import express from 'express'
+import cors from 'cors'
+import connectDB from './lib/connectDB.js'
+import userRouter from './routes/user.route.js'
+import postRouter from './routes/post.route.js'
+import commentRouter from './routes/comment.route.js'
+import webhookRouter from './routes/webhook.route.js'
+
+const app = express()
+
+// CORS — must be before routes
+app.use(cors({ origin: process.env.CLIENT_URL }))
+
+// Webhook route needs raw body — register before express.json()
+app.use('/webhooks', webhookRouter)
+app.use(express.json())
+
+app.use('/users', userRouter)
+app.use('/posts', postRouter)
+app.use('/comments', commentRouter)
+
+// Global error handler
+app.use((err, req, res, next) => {
+  res.status(err.status || 500).json({
+    message: err.message || 'Something went wrong',
+    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
+  })
+})
+
+app.listen(3000, async () => {
+  await connectDB()
+  console.log('Server running on port 3000')
+})
+```
+
+<Callout type="warning" emoji="🚨">
+    **Express 5 key change:** async route handlers automatically forward thrown errors to your error-handling middleware. You no longer need `try/catch` blocks or explicit `next(err)` calls in route handlers.
+</Callout>
+
+---
+
+## 3. MongoDB Connection
+
+```js
+// backend/lib/connectDB.js
+import mongoose from 'mongoose'
+
+export default async function connectDB() {
+  const conn = await mongoose.connect(process.env.MONGO_URL)
+  console.log(`MongoDB connected: ${conn.connection.host}`)
+}
+```
+
+Create `backend/.env`:
+
+```env
+MONGO_URL=mongodb+srv://<user>:<pass>@cluster.mongodb.net/blog
+CLIENT_URL=http://localhost:5173
+```
+
+---
+
+## 4. Mongoose Models
+
+<Tabs items={['User', 'Post', 'Comment']}>
+    <Tabs.Tab>
+        ```js
+        // models/user.model.js
+        import mongoose, { Schema } from 'mongoose'
+
+        const userSchema = new Schema({
+        clerkUserId: { type: String, required: true, unique: true },
+        username:    { type: String, required: true, unique: true },
+        email:       { type: String, required: true, unique: true },
+        img:         { type: String },
+        savedPosts:  { type: [String], default: [] },
+    }, { timestamps: true })
+
+        export default mongoose.model('User', userSchema)
+        ```
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```js
+        // models/post.model.js
+        import mongoose, { Schema } from 'mongoose'
+
+        const postSchema = new Schema({
+        user:       { type: Schema.Types.ObjectId, ref: 'User', required: true },
+        img:        { type: String },
+        title:      { type: String, required: true },
+        slug:       { type: String, required: true, unique: true },
+        category:   { type: String, default: 'General' },
+        desc:       { type: String },
+        content:    { type: String, required: true },
+        isFeatured: { type: Boolean, default: false },
+        visit:      { type: Number, default: 0 },
+    }, { timestamps: true })
+
+        export default mongoose.model('Post', postSchema)
+        ```
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```js
+        // models/comment.model.js
+        import mongoose, { Schema } from 'mongoose'
+
+        const commentSchema = new Schema({
+        user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+        post: { type: Schema.Types.ObjectId, ref: 'Post', required: true },
+        desc: { type: String, required: true },
+    }, { timestamps: true })
+
+        export default mongoose.model('Comment', commentSchema)
+        ```
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## 5. API Endpoints Reference
+
+### Post Routes
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/posts/upload-auth` | ImageKit upload token |
+| `GET` | `/posts` | List posts (paginated, filtered) |
+| `GET` | `/posts/:slug` | Single post (increments visit count) |
+| `POST` | `/posts` | Create post 🔐 |
+| `DELETE` | `/posts/:id` | Delete post 🔐 |
+| `PATCH` | `/posts/feature` | Feature/unfeature post 🔐 Admin |
+
+### User Routes
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/users/saved` | Get saved posts 🔐 |
+| `PATCH` | `/users/save` | Toggle save post 🔐 |
+
+### Comment Routes
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/comments/:postId` | Get comments for post |
+| `POST` | `/comments/:postId` | Add comment 🔐 |
+| `DELETE` | `/comments/:id` | Delete comment 🔐 |
+
+### Webhook Route
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/webhooks/clerk` | Clerk user lifecycle events |
+
+---
+
+## 6. Protecting Routes with Clerk Express
+
+```bash
+npm install @clerk/express
+```
+
+Register the middleware globally in `index.js`:
+
+```js
+import { clerkMiddleware } from '@clerk/express'
+app.use(clerkMiddleware())
+```
+
+In any controller, extract the authenticated user ID:
+
+```js
+const clerkUserId = req.auth?.userId
+if (!clerkUserId) return res.status(401).json({ message: 'Not authenticated' })
+```
+
+For admin-only actions, read the role from session claims:
+
+```js
+const role = req.auth?.sessionClaims?.metadata?.role
+if (role !== 'admin') return res.status(403).json({ message: 'Forbidden' })
+```
+
+<Callout type="info">
+    Set `metadata.role = "admin"` in **Clerk Dashboard → Users → Public Metadata**, and expose it via **Sessions → Customize session token → public_metadata**.
+</Callout>
+
+---
+
+## 7. Clerk Webhook — Sync Users to DB
+
+<Callout type="warning">
+    Register the webhook route **before** `express.json()` so it receives the raw body. Svix needs the raw bytes to verify the HMAC signature.
+</Callout>
+
+<Steps>
+
+    ### Install Svix
+
+    ```bash
+    npm install svix body-parser
+    ```
+
+    ### Expose your local server with ngrok
+
+    ```bash
+    ngrok http 3000
+    # Copy the https URL → paste into Clerk Dashboard → Webhooks → Add Endpoint
+    ```
+
+    ### Select events in the Clerk dashboard
+
+    Subscribe to `user.created`, `user.updated`, and `user.deleted`.
+
+    ### Implement the webhook controller
+
+    ```js
+    // controllers/webhook.controller.js
+    import { Webhook } from 'svix'
+    import UserModel from '../models/user.model.js'
+
+    export const clerkWebhook = async (req, res) => {
+    const webhookSecret = process.env.CLERK_WEBHOOK_SECRET
+    if (!webhookSecret) throw new Error('Webhook secret needed')
+
+    const wh = new Webhook(webhookSecret)
+    let event
+
+    try {
+    event = wh.verify(req.body, req.headers)
+} catch {
+    return res.status(400).json({ message: 'Webhook verification failed' })
+}
+
+    const { data, type } = event
+
+    if (type === 'user.created') {
+    const newUser = new UserModel({
+    clerkUserId: data.id,
+    username: data.username ?? data.email_addresses[0].email_address,
+    email: data.email_addresses[0].email_address,
+    img: data.profile_image_url,
+})
+    await newUser.save()
+}
+
+    if (type === 'user.deleted') {
+    await UserModel.findOneAndDelete({ clerkUserId: data.id })
+}
+
+    res.status(200).json({ message: 'Webhook received' })
+}
+    ```
+
+</Steps>

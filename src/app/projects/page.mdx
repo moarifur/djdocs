@@ -1,0 +1,745 @@
+---
+title: Building a Blog with Django
+description: A step-by-step guide to building a fully functional personal blog using Django — covering project setup, models, views, templates, static files, and media uploads.
+---
+
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Building a Blog with Django
+
+A step-by-step guide to building a fully functional personal blog using Django — covering project setup, URL routing, views, templates, static files, database models, and the Django admin panel.
+
+---
+
+## What You'll Build
+
+By the end of this guide your blog will include:
+
+- A **home page** listing the 3 latest posts
+- An **all posts page** listing every post
+- A **post detail page** for individual posts
+- Template inheritance with a shared base layout
+- Static files (CSS + images) and media file uploads
+- Dynamic data powered by a real SQLite database
+- A custom 404 error page
+
+---
+
+## Part 1 — Environment & Project Setup
+
+<Steps>
+
+    ### Check Python & upgrade pip
+
+    ```bash
+    python -V
+    # Expected: Python 3.x.x
+
+    python -m pip install --upgrade pip
+    ```
+
+    ### Create and activate a virtual environment
+
+    <Tabs items={['Windows', 'macOS / Linux']}>
+        <Tabs.Tab>
+            ```bash
+            python -m venv venv
+            venv\Scripts\activate
+            # You should see (venv) prefix in your terminal
+            ```
+        </Tabs.Tab>
+        <Tabs.Tab>
+            ```bash
+            python -m venv venv
+            source venv/bin/activate
+            # You should see (venv) prefix in your terminal
+            ```
+        </Tabs.Tab>
+    </Tabs>
+
+    ### Install Django
+
+    ```bash
+    pip install django
+    pip freeze   # Verify: Django==x.x.x appears
+    ```
+
+    ### Create the Django project and blog app
+
+    ```bash
+    django-admin startproject my_site
+    cd my_site
+    python manage.py startapp blog
+    ```
+
+    ### Register the app in settings
+
+    Open `my_site/settings.py` and add `"blog"` to `INSTALLED_APPS`:
+
+    ```python filename="my_site/settings.py"
+    INSTALLED_APPS = [
+    # ...default apps...
+    "blog",
+    ]
+    ```
+
+    <Callout type="info">
+        Django needs to know about your app to auto-detect its templates and static files. Skipping this step is one of the most common gotchas for beginners.
+    </Callout>
+
+</Steps>
+
+---
+
+## Part 2 — URL Routing
+
+### App-level URLs
+
+Create a `urls.py` file inside the `blog/` folder:
+
+```python filename="blog/urls.py"
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("", views.starting_page, name="starting-page"),
+    path("posts", views.posts, name="posts-page"),
+    path("posts/<slug:slug>", views.post_detail, name="post-detail-page"),
+]
+```
+
+| URL | View | Description |
+|-----|------|-------------|
+| `/` | `starting_page` | Home page with latest posts |
+| `/posts` | `posts` | All posts listing |
+| `/posts/<slug>` | `post_detail` | Individual post detail |
+
+<Callout type="info" emoji="🔖">
+    **What is a slug?** A slug is a URL-friendly text identifier like `my-first-post`. It's human-readable, SEO-friendly, and unique per post. Django's built-in `slug` path converter validates the format automatically.
+</Callout>
+
+### Project-level URLs
+
+Wire the blog URLs and media serving into `my_site/urls.py`:
+
+```python filename="my_site/urls.py"
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path("", include("blog.urls")),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
+
+<Callout type="warning">
+    The `+ static(...)` call at the end is **only for development**. In production, your web server (nginx, etc.) serves media files directly.
+</Callout>
+
+---
+
+## Part 3 — Settings: Database, Media & Static Files
+
+Your `settings.py` already has SQLite configured by default:
+
+```python filename="my_site/settings.py"
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+```
+
+Add the following so uploaded images are served correctly in development:
+
+```python filename="my_site/settings.py"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+```
+
+Also register the global `templates/` and `static/` folders:
+
+```python filename="my_site/settings.py"
+TEMPLATES = [
+    {
+        "DIRS": [BASE_DIR / "templates"],
+        # ...
+    }
+]
+
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+```
+
+---
+
+## Part 4 — Models
+
+### Define your models
+
+```python filename="blog/models.py"
+from django.db import models
+
+class Tag(models.Model):
+    caption = models.CharField(max_length=20)
+
+    def __str__(self):
+        return self.caption
+
+
+class Author(models.Model):
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email_address = models.EmailField()
+
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+
+    def __str__(self):
+        return self.full_name()
+
+
+class Post(models.Model):
+    title = models.CharField(max_length=150)
+    excerpt = models.CharField(max_length=200)
+    image = models.ImageField(upload_to="posts", null=True)
+    date = models.DateField(auto_now_add=True)
+    slug = models.SlugField(unique=True)
+    content = models.TextField()
+    author = models.ForeignKey(
+        Author, on_delete=models.SET_NULL, null=True, related_name="posts"
+    )
+    tags = models.ManyToManyField(Tag)
+
+    def __str__(self):
+        return self.title
+```
+
+### Run migrations
+
+<Callout type="warning">
+    `ImageField` requires the **Pillow** library. Install it before running migrations, or `makemigrations` will fail.
+</Callout>
+
+<Steps>
+
+    ### Install Pillow and create migrations
+
+    ```bash
+    pip install Pillow
+    python manage.py makemigrations
+    python manage.py migrate
+    ```
+
+</Steps>
+
+---
+
+## Part 5 — Django Admin
+
+### Register models
+
+```python filename="blog/admin.py"
+from django.contrib import admin
+from .models import Post, Author, Tag
+
+class PostAdmin(admin.ModelAdmin):
+    list_display = ("title", "author", "date")
+    prepopulated_fields = {"slug": ("title",)}
+
+class AuthorAdmin(admin.ModelAdmin):
+    list_display = ("first_name", "last_name", "email_address")
+
+admin.site.register(Post, PostAdmin)
+admin.site.register(Author, AuthorAdmin)
+admin.site.register(Tag)
+```
+
+<Callout type="info">
+    `prepopulated_fields` auto-fills the slug from the title as you type in the admin — a huge time saver and typo preventer.
+</Callout>
+
+### Create a superuser
+
+```bash
+python manage.py createsuperuser
+python manage.py runserver
+```
+
+Then visit [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin) to add posts, authors, and tags through the UI.
+
+---
+
+## Part 6 — Views
+
+Replace hardcoded data with real database queries:
+
+```python filename="blog/views.py"
+from django.shortcuts import render, get_object_or_404
+from .models import Post
+
+def starting_page(request):
+    latest_posts = Post.objects.all().order_by("-date")[:3]
+    return render(request, "blog/index.html", {"posts": latest_posts})
+
+def posts(request):
+    all_posts = Post.objects.all().order_by("-date")
+    return render(request, "blog/all-posts.html", {"all_posts": all_posts})
+
+def post_detail(request, slug):
+    post = get_object_or_404(Post, slug=slug)
+    return render(request, "blog/post-detail.html", {"post": post})
+```
+
+<Callout type="info">
+    - `order_by("-date")` sorts newest first — the `-` prefix means descending.
+    - `[:3]` slices the QuerySet to 3 results, which translates to `LIMIT 3` in SQL — efficient, not loading all rows.
+    - `get_object_or_404` automatically raises a 404 if no post matches the slug, which triggers your custom `404.html`.
+</Callout>
+
+---
+
+## Part 7 — Templates
+
+### Folder structure
+
+<FileTree>
+    <FileTree.Folder name="my_site" defaultOpen>
+        <FileTree.Folder name="templates" defaultOpen>
+            <FileTree.File name="base.html" />
+            <FileTree.File name="404.html" />
+        </FileTree.Folder>
+        <FileTree.Folder name="blog" defaultOpen>
+            <FileTree.Folder name="templates" defaultOpen>
+                <FileTree.Folder name="blog" defaultOpen>
+                    <FileTree.File name="index.html" />
+                    <FileTree.File name="all-posts.html" />
+                    <FileTree.File name="post-detail.html" />
+                    <FileTree.Folder name="includes">
+                        <FileTree.File name="post.html" />
+                    </FileTree.Folder>
+                </FileTree.Folder>
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+<Callout type="info">
+    Repeating the app name inside `templates/` (e.g. `blog/templates/blog/`) is Django best practice. It namespaces templates so that two apps with an `index.html` don't collide.
+</Callout>
+
+### base.html
+
+```html filename="templates/base.html"
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>{% block title %}My Blog{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}" />
+    {% block css_files %}{% endblock %}
+</head>
+<body>
+    <header id="main-navigation">
+        <h1><a href="{% url 'starting-page' %}">My Blog</a></h1>
+        <nav>
+            <a href="{% url 'posts-page' %}">All Posts</a>
+        </nav>
+    </header>
+
+    {% block content %}{% endblock %}
+
+    <footer>
+        <p>&copy; 2025 My Blog. All rights reserved.</p>
+    </footer>
+</body>
+</html>
+```
+
+<Callout type="info">
+    `{% url 'name' %}` resolves named URLs so you never hardcode paths. If a URL pattern changes, only `urls.py` needs updating — all templates stay untouched.
+</Callout>
+
+### index.html (Home page)
+
+```html filename="blog/templates/blog/index.html"
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Blog{% endblock %}
+
+{% block css_files %}
+<link rel="stylesheet" href="{% static 'css/post.css' %}" />
+<link rel="stylesheet" href="{% static 'css/index.css' %}" />
+{% endblock %}
+
+{% block content %}
+<section id="welcome">
+    <header>
+        <img src="{% static 'images/author.jpg' %}" alt="The author of this blog" />
+        <h2>Welcome to My Blog</h2>
+    </header>
+    <p>Hi, I love to blog about tech and the world!</p>
+</section>
+
+<section id="latest-posts">
+    <h2>My Latest Thoughts</h2>
+    <ol>
+        {% for post in posts %}
+            {% include "blog/includes/post.html" %}
+        {% endfor %}
+    </ol>
+</section>
+
+<section id="about">
+    <h2>What I Do</h2>
+    <p>I love programming and enjoy exploring new technologies!</p>
+</section>
+{% endblock %}
+```
+
+### all-posts.html
+
+```html filename="blog/templates/blog/all-posts.html"
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}All My Posts{% endblock %}
+
+{% block css_files %}
+<link rel="stylesheet" href="{% static 'css/post.css' %}" />
+<link rel="stylesheet" href="{% static 'css/all-posts.css' %}" />
+{% endblock %}
+
+{% block content %}
+<section id="all-posts">
+    <h2>My Collected Posts</h2>
+    <ul>
+        {% for post in all_posts %}
+            {% include "blog/includes/post.html" %}
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}
+```
+
+### post.html (reusable card snippet)
+
+```html filename="blog/templates/blog/includes/post.html"
+{% load static %}
+<li>
+    <article class="post">
+        <a href="{% url 'post-detail-page' post.slug %}">
+            <img src="{{ post.image.url }}" alt="{{ post.title }}" />
+            <div class="post__content">
+                <h3>{{ post.title }}</h3>
+                <p>{{ post.excerpt }}</p>
+            </div>
+        </a>
+    </article>
+</li>
+```
+
+<Callout type="warning">
+    Now that `image` is a Django `ImageField`, use `{{ post.image.url }}` — Django resolves the full media URL automatically. The old `{% static 'blog/images/'|add:post.image %}` trick only worked for hardcoded filenames.
+</Callout>
+
+### post-detail.html
+
+```html filename="blog/templates/blog/post-detail.html"
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ post.title }}{% endblock %}
+
+{% block css_files %}
+<link rel="stylesheet" href="{% static 'css/post-detail.css' %}" />
+{% endblock %}
+
+{% block content %}
+<section id="summary">
+    <h2>{{ post.title }}</h2>
+    <article>
+        <img src="{{ post.image.url }}" alt="{{ post.title }}" />
+        <address>By {{ post.author.full_name }}</address>
+        <div>
+            Last updated on <time>{{ post.date|date:"d N Y" }}</time>
+        </div>
+    </article>
+    <ul class="tags">
+        {% for tag in post.tags.all %}
+            <li>{{ tag.caption }}</li>
+        {% endfor %}
+    </ul>
+</section>
+
+<main>
+    {{ post.content|linebreaks }}
+</main>
+{% endblock %}
+```
+
+**Template filters used:**
+
+| Filter | Purpose | Example |
+|--------|---------|---------|
+| `date` | Formats a date object | `post.date\|date:"d N Y"` |
+| `linebreaks` | Converts newlines to `<br>` / `<p>` tags | `post.content\|linebreaks` |
+
+<Callout type="info">
+    **Dictionary access in templates:** Use dot notation (`post.title`) instead of bracket notation (`post["title"]`). Django's template engine uses `.` for both object attributes, dictionary keys, and method calls — so `post.author.full_name` calls the `full_name()` method you defined on the `Author` model.
+</Callout>
+
+### 404.html
+
+```html filename="templates/404.html"
+{% extends "base.html" %}
+
+{% block title %}We didn't find that page{% endblock %}
+
+{% block content %}
+<h2>We're sorry.</h2>
+<p>But we couldn't find that page.</p>
+{% endblock %}
+```
+
+<Callout type="warning">
+    The custom 404 page only shows in **production mode** (`DEBUG = False`). During development, Django shows its own debug 404 page instead.
+</Callout>
+
+---
+
+## Part 8 — Static Files
+
+### Folder structure
+
+<FileTree>
+    <FileTree.Folder name="my_site" defaultOpen>
+        <FileTree.Folder name="static" defaultOpen>
+            <FileTree.Folder name="css">
+                <FileTree.File name="app.css" />
+                <FileTree.File name="index.css" />
+                <FileTree.File name="all-posts.css" />
+                <FileTree.File name="post.css" />
+                <FileTree.File name="post-detail.css" />
+            </FileTree.Folder>
+            <FileTree.Folder name="images">
+                <FileTree.File name="author.jpg" />
+                <FileTree.File name="mountains.jpg" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.Folder name="media">
+            <FileTree.Folder name="posts">
+                <FileTree.File name="(uploaded images go here)" />
+            </FileTree.Folder>
+        </FileTree.Folder>
+    </FileTree.Folder>
+</FileTree>
+
+<Callout type="info">
+    - **`static/`** — files you write and ship with your project (CSS, JS, logo images). Loaded with `{% static %}`.
+    - **`media/`** — files uploaded by users/admin at runtime (post images). Served via `MEDIA_URL`. Never commit this folder to git.
+</Callout>
+
+### Using static files in templates
+
+```html
+{% load static %}
+
+<!-- CSS -->
+<link rel="stylesheet" href="{% static 'css/app.css' %}" />
+
+<!-- Static image (your own asset) -->
+<img src="{% static 'images/author.jpg' %}" alt="Author" />
+
+<!-- Media image (uploaded via ImageField) -->
+<img src="{{ post.image.url }}" alt="{{ post.title }}" />
+```
+
+<Callout type="warning">
+    Always add `{% load static %}` at the top of **every** template that uses the `{% static %}` tag — including included snippets like `post.html`. Forgetting this is a very common source of `TemplateSyntaxError`.
+</Callout>
+
+---
+
+## CSS Reference
+
+<Tabs items={['index.css', 'all-posts.css', 'post-detail.css', 'post.css']}>
+    <Tabs.Tab>
+        ```css filename="static/css/index.css"
+        /* Welcome Section */
+        #welcome {
+        width: 90%;
+        max-width: 960px;
+        margin: 3rem auto 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+        padding-bottom: 2.5rem;
+        border-bottom: 1px solid #e8e4de;
+    }
+        #welcome header {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+    }
+        #welcome header img {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #e8e4de;
+    }
+        #welcome header h2 { font-size: 1.5rem; }
+        #welcome p { color: #555; font-size: 1rem; margin: 0; }
+
+        /* Latest Posts Section */
+        #latest-posts {
+        width: 90%;
+        max-width: 960px;
+        margin: 2.5rem auto;
+    }
+        #latest-posts h2 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #aaa;
+        margin-bottom: 1.5rem;
+    }
+        #latest-posts ol {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1.5rem;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+        /* About Section */
+        #about {
+        width: 90%;
+        max-width: 960px;
+        margin: 0 auto 4rem;
+        padding-top: 2.5rem;
+        border-top: 1px solid #e8e4de;
+    }
+        #about h2 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+        #about p { color: #555; margin: 0; }
+        ```
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```css filename="static/css/all-posts.css"
+        #all-posts {
+        width: 90%;
+        max-width: 960px;
+        margin: 3rem auto 5rem;
+    }
+        #all-posts h2 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #aaa;
+        margin-bottom: 1.5rem;
+    }
+        #all-posts ul {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1.5rem;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+        ```
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```css filename="static/css/post-detail.css"
+        /* Hero Section */
+        #summary {
+        width: 90%;
+        max-width: 780px;
+        margin: 3rem auto 0;
+    }
+        #summary h2 { font-size: 2rem; line-height: 1.2; margin-bottom: 1.5rem; color: #111; }
+        #summary article { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem; }
+        #summary article img {
+        width: 100%;
+        max-height: 420px;
+        object-fit: cover;
+        border-radius: 6px;
+        border: 1px solid #e8e4de;
+    }
+        #summary article address { font-size: 0.95rem; color: #555; font-weight: 600; }
+        #summary article div { font-size: 0.875rem; color: #888; }
+
+        /* Tags */
+        .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        list-style: none;
+        padding: 0;
+        margin: 0 0 2.5rem;
+    }
+        .tags li {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        background-color: #f0ece6;
+        color: #6b4c2a;
+        padding: 0.3rem 0.75rem;
+        border-radius: 99px;
+    }
+
+        /* Post Body */
+        main { width: 90%; max-width: 780px; margin: 0 auto; padding: 2rem 0 5rem; }
+        main p { font-size: 1.05rem; line-height: 1.85; color: #333; margin-bottom: 1.25rem; }
+        main p:last-child { margin-bottom: 0; }
+        ```
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```css filename="static/css/post.css"
+        /*
+        Shared post card styles used on index + all-posts pages.
+        Add card overrides here if needed.
+        */
+        ```
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Summary
+
+Here's what was built end-to-end:
+
+| Step | What was done |
+|------|---------------|
+| **Project & App** | Created `my_site` + `blog` app, registered in settings |
+| **URLs** | Three routes: home, all posts, post detail with `<slug>` |
+| **Models** | `Tag`, `Author`, `Post` with `ImageField` and relationships |
+| **Migrations** | `makemigrations` + `migrate` + Pillow for image support |
+| **Admin** | Registered models, `prepopulated_fields`, superuser |
+| **Views** | QuerySet-based views with `order_by`, slicing, `get_object_or_404` |
+| **Templates** | `{% extends %}`, `{% block %}`, `{% include %}`, `{% url %}` |
+| **Static Files** | Global `static/` for CSS/images, `STATICFILES_DIRS` in settings |
+| **Media Files** | `MEDIA_URL` + `MEDIA_ROOT` + `static()` in `urls.py` |
+| **404 Page** | `404.html` in the global `templates/` directory |
+
+---
+
+## What's Next
+
+- Replace SQLite with **PostgreSQL** for production
+- Add a **forms** layer to create and edit blog posts from the frontend
+- Implement **user authentication** for protected admin access
+- Add **pagination** to the all-posts page
+- Deploy to a hosting provider (Railway, Render, or a VPS with nginx + gunicorn)
