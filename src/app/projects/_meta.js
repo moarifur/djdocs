@@ -8,4 +8,7 @@ export default {
     reactblog: {
         title: 'Blog With React',
     },
+    astroblog: {
+        title: 'Blog With Astro',
+    },
 };

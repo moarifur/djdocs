@@ -1,0 +1,1045 @@
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Astro Web Framework — Crash Course Guide
+
+Astro is an all-in-one web framework for building **fast, content-focused websites** — landing pages, blogs, technical documentation, and more. This guide walks through every concept covered in the crash course, from project setup to SSR deployment.
+
+<Callout type="info">
+    This guide is based on the **Astro 3.0** crash course taught by James Q Quick. The demo project is a music community blog called **Rhythm Nation**. A full extended course is available at [astrocourse.dev](https://astrocourse.dev).
+</Callout>
+
+---
+
+## What You'll Build
+
+- 🏠 A **home page** and **blog listing page** powered by content collections
+- 📄 **Individual blog post pages** with dynamic routing and slug-based navigation
+- 🖼️ **Optimized images** using the Astro `<Image />` component (WebP, lazy loading)
+- ✨ **View transitions** for smooth page-to-page animations
+- 📝 **MDX support** to embed components inside Markdown content
+- 🌐 **Deployment** to both Netlify and Vercel
+- ⚙️ **SSR mode** with API endpoints and server-side rendering
+
+---
+
+## Core Concepts at a Glance
+
+| Concept | What it means |
+|---|---|
+| `.astro` files | Astro's component format — front matter (JS) + HTML template + scoped CSS |
+| File-based routing | Files in `src/pages/` automatically become URL routes |
+| Content collections | A typed, schema-validated way to manage Markdown/MDX content |
+| Static site generation (SSG) | HTML is generated at **build time** — the default in Astro |
+| Server-side rendering (SSR) | HTML is generated **per request** — opt-in via `output: 'server'` |
+| Integrations | One-command additions for Tailwind, MDX, adapters, and UI frameworks |
+| View Transitions | Browser-native animated page transitions with one component |
+
+---
+
+## Project Structure
+
+<FileTree>
+    <FileTree.Folder name="fcc-astro-crash-course" defaultOpen>
+        <FileTree.Folder name="public" defaultOpen>
+            <FileTree.File name="heartbeat.png" />
+            <FileTree.Folder name="images">
+                <FileTree.File name="band.jpeg" />
+                <FileTree.File name="..." />
+            </FileTree.Folder>
+            <FileTree.File name="favicon.svg" />
+        </FileTree.Folder>
+        <FileTree.Folder name="src" defaultOpen>
+            <FileTree.Folder name="components">
+                <FileTree.File name="Header.astro" />
+                <FileTree.File name="H1.astro" />
+                <FileTree.File name="Main.astro" />
+                <FileTree.File name="Post.astro" />
+                <FileTree.File name="PostList.astro" />
+            </FileTree.Folder>
+            <FileTree.Folder name="content">
+                <FileTree.File name="config.ts" />
+                <FileTree.Folder name="posts">
+                    <FileTree.File name="post-1.md" />
+                    <FileTree.File name="post-2.mdx" />
+                    <FileTree.File name="..." />
+                    <FileTree.Folder name="images">
+                        <FileTree.File name="cover-1.jpg" />
+                    </FileTree.Folder>
+                </FileTree.Folder>
+            </FileTree.Folder>
+            <FileTree.Folder name="layouts">
+                <FileTree.File name="Layout.astro" />
+            </FileTree.Folder>
+            <FileTree.Folder name="pages">
+                <FileTree.File name="index.astro" />
+                <FileTree.File name="about.astro" />
+                <FileTree.File name="blog.astro" />
+                <FileTree.Folder name="blog">
+                    <FileTree.File name="[slug].astro" />
+                </FileTree.Folder>
+                <FileTree.Folder name="api">
+                    <FileTree.File name="test.ts" />
+                </FileTree.Folder>
+            </FileTree.Folder>
+        </FileTree.Folder>
+        <FileTree.File name="astro.config.mjs" />
+        <FileTree.File name="tailwind.config.mjs" />
+        <FileTree.File name="tsconfig.json" />
+        <FileTree.File name="package.json" />
+    </FileTree.Folder>
+</FileTree>
+
+---
+
+## Part 1 — Creating a New Project
+
+<Callout type="warning">
+    Astro 3 requires **Node.js 18 or higher**. If you're on an older version, use [nvm](https://github.com/nvm-sh/nvm) to switch: `nvm use 18`.
+</Callout>
+
+<Steps>
+
+    ### Run the Astro create command
+
+    ```bash
+    npm create astro@latest
+    ```
+
+    The interactive CLI will walk you through the setup:
+
+    - **Folder name** — e.g. `./fcc-astro-crash-course`
+    - **Starter template** — choose *Sample files* (or *Blog* for a head start)
+    - **Install dependencies** — Yes
+    - **TypeScript** — Yes → *Strict* recommended
+    - **Initialize a git repository** — Yes (needed for deployment)
+
+    ### Open and start the dev server
+
+    ```bash
+    cd fcc-astro-crash-course
+    npm run dev
+    ```
+
+    The app runs at **[http://localhost:4321](http://localhost:4321)** — the port is a nod to "4-3-2-1 blast off! 🚀"
+
+    ### Browse the starter
+
+    You'll see the default Astro welcome page with links to docs, themes, and the community. From here you'll strip it back and build your own blog.
+
+</Steps>
+
+---
+
+## Part 2 — VS Code Setup
+
+Install these extensions for the best Astro development experience:
+
+| Extension | Purpose |
+|---|---|
+| **Astro** (by Astro) | Syntax highlighting, IntelliSense, and formatting for `.astro` files |
+| **Astro Snippets** | Code snippet shortcuts for common Astro patterns |
+| **Houston** (by Astro) | Astro-themed colour scheme + animated mascot in the file explorer |
+| **Tailwind CSS IntelliSense** | Autocomplete for Tailwind utility classes |
+
+<Callout type="info">
+    Without the **Astro** extension, VS Code treats `.astro` files as plain text — no highlighting, no IntelliSense. Install it first.
+</Callout>
+
+---
+
+## Part 3 — Astro Component Anatomy
+
+Every `.astro` file has up to three sections:
+
+```astro
+---
+// 1. Front matter — JavaScript / TypeScript
+// Runs at build time (or request time in SSR)
+// Import components, fetch data, define variables here
+
+import MyComponent from '../components/MyComponent.astro'
+const greeting = 'Hello, world!'
+---
+
+<!-- 2. HTML Template — use {variables} to interpolate JS values -->
+<div>
+  <p>{greeting}</p>
+  <MyComponent />
+</div>
+
+<style>
+  /* 3. Scoped CSS — only applies to THIS component by default */
+  p { color: blue; }
+</style>
+```
+
+<Callout type="info" emoji="🔑">
+    **Scoped styles by default.** A `<style>` block inside an Astro component only affects elements in that component. To apply styles globally, use `<style is:global>`.
+</Callout>
+
+### Props and Slots
+
+**Defining and using props:**
+
+```astro
+---
+// H1.astro
+interface Props {
+text: string
+}
+const { text } = Astro.props
+---
+<h1 class="text-4xl font-bold">{text}</h1>
+```
+
+**Using that component with a prop:**
+
+```astro
+<H1 text="Rhythm Nation" />
+```
+
+**Slots** — inject child content into a layout component:
+
+```astro
+---
+// Layout.astro
+const { title } = Astro.props
+---
+<html>
+<head><title>{title}</title></head>
+<body>
+<slot />  <!-- child content renders here -->
+</body>
+</html>
+```
+
+```astro
+<!-- index.astro -->
+<Layout title="Home">
+    <H1 text="Welcome" />   <!-- this becomes the slot -->
+</Layout>
+```
+
+---
+
+## Part 4 — Installing Tailwind CSS
+
+Astro's `astro add` command installs integrations in one step:
+
+```bash
+npx astro add tailwind
+```
+
+This automatically:
+1. Installs `@astrojs/tailwind` and `tailwindcss`
+2. Generates `tailwind.config.mjs`
+3. Adds the integration to `astro.config.mjs`
+
+<Callout type="tip">
+    You can use `npx astro add` for any official integration — React, Vue, Svelte, MDX, Netlify, Vercel, and more.
+</Callout>
+
+After adding Tailwind, you can drop all the inline `<style>` blocks from the starter files and write utility classes directly in your templates.
+
+    ---
+
+    ## Part 5 — The Layout Component
+
+    The shared layout lives in `src/layouts/Layout.astro` and wraps every page. It defines the full HTML shell and shared meta tags.
+
+    ```astro
+    ---
+    // src/layouts/Layout.astro
+    import Header from '../components/Header.astro'
+    import { ViewTransitions } from 'astro:transitions'
+
+    interface Props {
+        title: string
+        description?: string
+        image?: string
+    }
+
+    const {
+        title,
+        description = 'A community for music producers and enthusiasts.',
+        image = '/images/band.jpeg',
+    } = Astro.props
+    ---
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+        <meta name="description" content={description} />
+        <meta property="og:image" content={image} />
+        <title>{title}</title>
+        <ViewTransitions />
+    </head>
+    <body class="min-h-screen">
+    <Header />
+    <slot />
+    </body>
+    </html>
+    ```
+
+    <Callout type="info">
+        **Default prop values** — use `= 'default value'` syntax in the destructure to provide fallbacks when a prop is optional.
+    </Callout>
+
+    ---
+
+    ## Part 6 — File-Based Routing
+
+    Any file inside `src/pages/` automatically becomes a route:
+
+    | File | URL |
+    |---|---|
+    | `src/pages/index.astro` | `/` |
+    | `src/pages/about.astro` | `/about` |
+    | `src/pages/blog.astro` | `/blog` |
+    | `src/pages/blog/[slug].astro` | `/blog/:slug` (dynamic) |
+    | `src/pages/api/test.ts` | `/api/test` (endpoint) |
+
+    ### Static Pages
+
+    ```astro
+    ---
+    // src/pages/index.astro
+    import Layout from '../layouts/Layout.astro'
+    import Main from '../components/Main.astro'
+    import H1 from '../components/H1.astro'
+    ---
+    <Layout title="Rhythm Nation Blog">
+        <Main>
+            <H1 text="Rhythm Nation" />
+        </Main>
+    </Layout>
+    ```
+
+    ### Reusable `Main` wrapper component
+
+    A `Main.astro` component centralises spacing and max-width constraints:
+
+    ```astro
+    ---
+    // src/components/Main.astro
+    ---
+    <main class="px-5 md:px-24 max-w-7xl mx-auto w-full">
+        <slot />
+    </main>
+    ```
+
+    ### Public assets
+
+    Files in the `public/` directory are served as-is at the root URL. For example, `public/heartbeat.png` is accessible at `/heartbeat.png`.
+
+    ---
+
+    ## Part 7 — Content Collections
+
+    Content collections are Astro's typed, schema-validated system for managing Markdown and MDX content. They are the recommended way to work with blog posts, docs, or any other structured content.
+
+    <Steps>
+
+        ### Create the content directory structure
+
+        ```
+        src/content/
+        config.ts       ← schema definitions
+        posts/
+        my-first-post.md
+        another-post.mdx
+        images/
+        cover.jpg
+        ```
+
+        ### Define a collection schema in `config.ts`
+
+        ```typescript
+        // src/content/config.ts
+        import { defineCollection, z } from 'astro:content'
+
+        const postsCollection = defineCollection({
+        schema: ({ image }) =>
+        z.object({
+        author:     z.string(),
+        date:       z.string(),
+        image:      image(),         // Astro-managed image reference
+        title:      z.string(),
+        featured:   z.boolean().optional(),
+        categories: z.array(z.string()).optional(),
+    }),
+    })
+
+        export const collections = {
+        posts: postsCollection,   // key must match the folder name
+    }
+        ```
+
+        <Callout type="warning">
+            The key in `collections` (`posts`) **must exactly match** the folder name under `src/content/`. Mismatches cause runtime errors.
+        </Callout>
+
+        <Callout type="info">
+            Wrapping `schema` in a function `({ image }) => z.object(...)` is required when you use `image()` as a field type. This lets Astro resolve image paths relative to the Markdown file.
+        </Callout>
+
+        ### Write a Markdown post with front matter
+
+        ```markdown
+        ---
+        title: "Behind the Scenes"
+        author: "Jane Doe"
+        date: "2023-10-01"
+        image: ./images/cover.jpg
+        categories: ["production", "studio"]
+        featured: true
+        ---
+
+        ## Introduction
+
+        Welcome to this post about music production...
+        ```
+
+        <Callout type="tip">
+            Image paths in front matter should be **relative** (`./images/cover.jpg`), not absolute (`/images/cover.jpg`), when the images live inside the `src/content/posts/` directory. This lets Astro's image pipeline process them.
+        </Callout>
+
+    </Steps>
+
+    ---
+
+    ## Part 8 — Querying and Displaying Posts
+
+    ### Blog listing page
+
+    ```astro
+    ---
+    // src/pages/blog.astro
+    import { getCollection } from 'astro:content'
+    import Layout from '../layouts/Layout.astro'
+    import Main from '../components/Main.astro'
+    import PostList from '../components/PostList.astro'
+
+    const posts = await getCollection('posts')
+    ---
+    <Layout title="Blog — Rhythm Nation">
+        <Main>
+            <h1 class="text-3xl font-bold my-6">All Posts</h1>
+            <PostList posts={posts} />
+        </Main>
+    </Layout>
+    ```
+
+    ### `PostList` component
+
+    ```astro
+    ---
+    // src/components/PostList.astro
+    import type { CollectionEntry } from 'astro:content'
+    import Post from './Post.astro'
+
+    interface Props {
+        posts: CollectionEntry<'posts'>[]
+    }
+    const { posts } = Astro.props
+    ---
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {posts.map((post) => <Post post={post} />)}
+    </div>
+    ```
+
+    ### `Post` card component
+
+    ```astro
+    ---
+    // src/components/Post.astro
+    import type { CollectionEntry } from 'astro:content'
+    import { Image } from 'astro:assets'
+
+    interface Props {
+        post: CollectionEntry<'posts'>
+    }
+    const { post } = Astro.props
+    ---
+    <article class="rounded-xl overflow-hidden shadow">
+        <Image
+            src={post.data.image}
+            alt={post.data.title}
+            width={600}
+            height={400}
+            class="w-full object-cover"
+        />
+        <div class="p-4">
+            <a href={`/blog/${post.slug}`}>
+                <h2 class="text-xl font-semibold">{post.data.title}</h2>
+            </a>
+            <p class="line-clamp-2 text-gray-600 mt-2">{post.body}</p>
+        </div>
+    </article>
+    ```
+
+    ---
+
+    ## Part 9 — Dynamic Routes for Blog Posts
+
+    Individual blog post pages use a **dynamic segment** in the filename: `[slug].astro`.
+
+    <Tabs items={['SSG (Static)', 'SSR (Server-side)']}>
+        <Tabs.Tab>
+
+            In static mode (default), you must export `getStaticPaths` to tell Astro which slugs to generate at build time.
+
+            ```astro
+            ---
+            // src/pages/blog/[slug].astro
+            import { getCollection, type CollectionEntry } from 'astro:content'
+            import { Image } from 'astro:assets'
+            import Layout from '../../layouts/Layout.astro'
+            import Main from '../../components/Main.astro'
+
+            export async function getStaticPaths() {
+            const posts = await getCollection('posts')
+            return posts.map((post) => ({
+            params: { slug: post.slug },
+            props:  { post },
+        }))
+        }
+
+            interface Props {
+            post: CollectionEntry<'posts'>
+        }
+
+            const { post } = Astro.props
+            const { Content } = await post.render()
+            ---
+            <Layout title={post.data.title}>
+                <Main>
+                    <h1 class="text-4xl font-bold my-6">{post.data.title}</h1>
+                    <Image
+                        src={post.data.image}
+                        alt={post.data.title}
+                        width={1024}
+                        height={600}
+                        class="rounded-xl w-full object-cover"
+                    />
+                    <div class="prose prose-2xl mt-8">
+                        <Content />
+                    </div>
+                </Main>
+            </Layout>
+            ```
+
+            <Callout type="warning">
+                `getStaticPaths` **must return** the paths array. Forgetting the `return` statement causes an "expected array, got undefined" error.
+            </Callout>
+
+        </Tabs.Tab>
+        <Tabs.Tab>
+
+            In SSR mode (`output: 'server'`), remove `getStaticPaths` and query the post dynamically per request using `getEntryBySlug`.
+
+            ```astro
+            ---
+            // src/pages/blog/[slug].astro  (SSR version)
+            import { getEntryBySlug } from 'astro:content'
+            import { Image } from 'astro:assets'
+            import Layout from '../../layouts/Layout.astro'
+            import Main from '../../components/Main.astro'
+
+            const { slug } = Astro.params
+            const post = await getEntryBySlug('posts', slug as string)
+
+            if (!post) {
+            return Astro.redirect('/404')
+        }
+
+            const { Content } = await post.render()
+            ---
+            <Layout title={post.data.title}>
+                <Main>
+                    <h1 class="text-4xl font-bold my-6">{post.data.title}</h1>
+                    <Image
+                        src={post.data.image}
+                        alt={post.data.title}
+                        width={1024}
+                        height={600}
+                        class="rounded-xl w-full object-cover"
+                    />
+                    <div class="prose prose-2xl mt-8">
+                        <Content />
+                    </div>
+                </Main>
+            </Layout>
+            ```
+
+        </Tabs.Tab>
+    </Tabs>
+
+    ---
+
+    ## Part 10 — Image Optimisation
+
+    Astro's built-in `<Image />` component automatically:
+
+    - Converts images to **WebP** format
+    - Applies **lazy loading**
+    - Resizes images to the specified dimensions
+    - Generates optimised internal URLs
+
+    ### Before (unoptimised)
+
+    ```html
+    <!-- Large JPEG, no lazy load, not resized -->
+    <img src="/images/cover.jpg" />
+    ```
+
+    ### After (optimised)
+
+    ```astro
+    ---
+    import { Image } from 'astro:assets'
+    ---
+    <Image
+        src={post.data.image}
+        alt="Cover photo"
+        width={600}
+        height={400}
+    />
+    ```
+
+    <Callout type="tip">
+        Move post images **into** the `src/content/posts/images/` directory (not `public/`) so that Astro's image pipeline can process them. Reference them with a relative path (`./images/cover.jpg`) in front matter.
+    </Callout>
+
+    ### Impact
+
+    Opening the Network tab in DevTools before and after switching to `<Image />` shows images dropping from several megabytes (JPEG) to tens of kilobytes (WebP), with images only loading as they enter the viewport.
+
+    ---
+
+    ## Part 11 — View Transitions
+
+    Add smooth animated transitions between every page with **one import** in your layout:
+
+    ```astro
+    ---
+    // src/layouts/Layout.astro
+    import { ViewTransitions } from 'astro:transitions'
+    ---
+    <head>
+        <!-- other head tags -->
+        <ViewTransitions />
+    </head>
+    ```
+
+    That's all. Navigating between pages now uses the browser's native View Transitions API for a smooth, animated experience — no JavaScript framework needed.
+
+    <Callout type="info">
+        View Transitions can also pass state between pages and be customised per-element. The one-liner above applies the default cross-fade animation globally.
+    </Callout>
+
+    ---
+
+    ## Part 12 — MDX Support
+
+    MDX lets you write Markdown with embedded **React, Vue, Svelte, or Astro components** inline in your content.
+
+    ### Install the integration
+
+    ```bash
+    npx astro add mdx
+    ```
+
+    ### Rename a `.md` file to `.mdx`
+
+    Everything continues to work — the file is now MDX-enabled.
+
+    ### What MDX adds
+
+    ```mdx
+    ---
+    title: "Studio Session"
+    ---
+
+    export const highlight = "electric blue"
+
+    ## Recording Day
+
+    The walls were painted {highlight}. Here's our studio component:
+
+    import StudioCard from '../../components/StudioCard.astro'
+    import NewsletterCTA from '../../components/NewsletterCTA.jsx'
+
+    <StudioCard name="Studio B" />
+    <NewsletterCTA />
+
+    Regular **Markdown** continues to work alongside components.
+    ```
+
+    <Callout type="tip">
+        MDX is ideal for blog posts that need interactive elements, callouts, embedded demos, or custom-styled sections — without leaving the Markdown authoring experience.
+    </Callout>
+
+    ---
+
+    ## Part 13 — Tailwind CSS Typography
+
+    The Tailwind Typography plugin (`@tailwindcss/typography`) adds beautiful prose styles for rendered Markdown content.
+
+    ### Install
+
+    ```bash
+    npm install @tailwindcss/typography
+    ```
+
+    ### Register in `tailwind.config.mjs`
+
+    ```js
+    export default {
+        plugins: [
+        require('@tailwindcss/typography'),
+        ],
+    }
+    ```
+
+    ### Use on the page
+
+    Wrap your `<Content />` component in a `div` with the `prose` class:
+
+    ```astro
+    <div class="prose prose-2xl">
+        <Content />
+    </div>
+    ```
+
+    This instantly styles headings, paragraphs, lists, blockquotes, code blocks, and images with sensible, readable defaults.
+
+    ---
+
+    ## Part 14 — SSG vs SSR Explained
+
+    Understanding the difference between static site generation and server-side rendering helps you choose the right output mode for each page.
+
+    <Tabs items={['Static Site Generation (SSG)', 'Server-Side Rendering (SSR)']}>
+        <Tabs.Tab>
+
+            **Build time:** Astro runs your code and generates a pre-built `.html` file for every page — including one for each blog post (via `getStaticPaths`).
+
+            **Request time:** The browser makes a request → the CDN returns the pre-built HTML instantly. No server computation needed.
+
+            ```
+            Deploy
+            └── Build process
+            ├── index.html
+            ├── blog.html
+            ├── blog/post-1.html
+            └── blog/post-2.html
+            ↓
+            CDN (replicated globally)
+            ↓
+            Browser request → CDN returns pre-built page ✅
+            ```
+
+            **Best for:** Content that doesn't change per user or per request — blogs, documentation, marketing sites.
+
+        </Tabs.Tab>
+        <Tabs.Tab>
+
+            **Build time:** The application is compiled and configured, but no HTML pages are pre-generated.
+
+            **Request time:** The browser makes a request → the **application server** receives it → queries the database (or content files) → renders the HTML on the fly → returns it to the browser.
+
+            ```
+            Deploy
+            └── Build process (no pre-built HTML pages)
+            ↓
+            Application server
+            ↓
+            Browser request
+            → Server queries data source
+            → Server renders HTML
+            → Returns to browser ✅
+            ```
+
+            **Best for:** Pages that are personalised per user, frequently updated, or rely on authentication/sessions.
+
+        </Tabs.Tab>
+    </Tabs>
+
+    <Callout type="tip">
+        **Hybrid mode** is also available — pre-render most pages statically and opt individual pages into SSR. Add `export const prerender = true` to any page to statically generate it even in SSR mode, or `export const prerender = false` to opt out in hybrid mode.
+    </Callout>
+
+    ---
+
+    ## Part 15 — Enabling SSR
+
+    <Steps>
+
+        ### Set the output to `server` in `astro.config.mjs`
+
+        ```js
+        // astro.config.mjs
+        import { defineConfig } from 'astro/config'
+        import tailwind from '@astrojs/tailwind'
+
+        export default defineConfig({
+        integrations: [tailwind()],
+        output: 'server',            // ← enables SSR
+    })
+        ```
+
+        ### Selectively pre-render a static page
+
+        Even in SSR mode, individual pages can be rendered statically:
+
+        ```astro
+        ---
+        // src/pages/index.astro
+        export const prerender = true   // ← this page is generated at build time
+        ---
+        ```
+
+        ### Handle missing pages with redirects
+
+        In SSR, `getStaticPaths` is not used. Instead, handle the case where a slug doesn't exist:
+
+        ```astro
+        ---
+        const post = await getEntryBySlug('posts', slug as string)
+        if (!post) return Astro.redirect('/404')
+        ---
+        ```
+
+    </Steps>
+
+    ---
+
+    ## Part 16 — API Endpoints
+
+    With `output: 'server'` you can create server-only API route handlers inside `src/pages/api/`.
+
+    ### Simple GET endpoint
+
+    ```typescript
+    // src/pages/api/test.ts
+    import type { APIRoute } from 'astro'
+
+    export const GET: APIRoute = () => {
+        return new Response(
+        JSON.stringify({ message: 'Hello, world!' }),
+    { headers: { 'Content-Type': 'application/json' } }
+        )
+    }
+    ```
+
+    Visit `/api/test` in the browser to see the JSON response.
+
+    ### POST endpoint with request body
+
+    ```typescript
+    // src/pages/api/test.ts
+    import type { APIRoute } from 'astro'
+
+    export const POST: APIRoute = async ({ request }) => {
+        const body = await request.json()
+        return new Response(
+        JSON.stringify(body),
+    { headers: { 'Content-Type': 'application/json' } }
+        )
+    }
+    ```
+
+    <Callout type="info">
+        Browsers can only send GET requests directly. Use a tool like **Postman** or the Postman VS Code extension to test POST, PUT, and DELETE endpoints during development.
+    </Callout>
+
+    **What you can build with API endpoints:**
+
+    - Form submission handlers
+    - Authentication routes (login, logout, session checks)
+    - Webhook receivers
+    - Proxy routes for third-party APIs
+
+    ---
+
+    ## Part 17 — Deployment
+
+    ### Push to GitHub first
+
+    ```bash
+    git add .
+    git commit -m "initial commit"
+    git remote add origin https://github.com/your-user/fcc-astro-crash-course.git
+    git push -u origin main
+    ```
+
+    <Tabs items={['Netlify', 'Vercel']}>
+        <Tabs.Tab>
+
+            **For static output** — Netlify auto-detects Astro and deploys with no extra config.
+
+            **For SSR output** — install the Netlify adapter first:
+
+            ```bash
+            npx astro add netlify
+            ```
+
+            This adds `@astrojs/netlify` and updates `astro.config.mjs`:
+
+            ```js
+            import netlify from '@astrojs/netlify'
+
+            export default defineConfig({
+            output: 'server',
+            adapter: netlify(),
+        })
+            ```
+
+            Then in the **Netlify dashboard**:
+
+            <Steps>
+
+                ### Add a new site
+
+                Go to **Sites → Add new site → Import an existing project**.
+
+                ### Connect GitHub
+
+                Choose **Deploy with GitHub** → search for your repository → select it.
+
+                ### Deploy
+
+                Leave all build settings at their defaults — Netlify detects Astro automatically. Click **Deploy site**.
+
+            </Steps>
+
+            Netlify deploys SSR routes as **Netlify Functions** automatically.
+
+        </Tabs.Tab>
+        <Tabs.Tab>
+
+            **For SSR output** — install the Vercel adapter:
+
+            ```bash
+            npx astro add vercel
+            ```
+
+            This adds `@astrojs/vercel` and updates `astro.config.mjs`:
+
+            ```js
+            import vercel from '@astrojs/vercel/serverless'
+
+            export default defineConfig({
+            output: 'server',
+            adapter: vercel(),
+        })
+            ```
+
+            Then commit and push:
+
+            ```bash
+            git add .
+            git commit -m "add vercel SSR adapter"
+            git push
+            ```
+
+            In the **Vercel dashboard**:
+
+            <Steps>
+
+                ### Add a new project
+
+                Click **Add New → Project** → import from GitHub.
+
+                ### Select your repository
+
+                Choose `fcc-astro-crash-course` from the list.
+
+                ### Deploy
+
+                Accept all defaults — Vercel detects Astro automatically. Click **Deploy**.
+
+            </Steps>
+
+        </Tabs.Tab>
+    </Tabs>
+
+    <Callout type="warning">
+        Each adapter is **mutually exclusive**. If you switch from Netlify to Vercel (or vice versa), update `astro.config.mjs` to reference only the adapter you're currently targeting. Having both active will cause build errors.
+    </Callout>
+
+    ---
+
+    ## Part 18 — SSR Capabilities Beyond Routing
+
+    Once SSR is enabled, Astro becomes a full-stack framework. Some of what you can build:
+
+    - **Authentication** — read and write cookies (`Astro.cookies`), gate pages based on session state
+    - **Form handling** — process `POST` requests from HTML forms without a separate API
+    - **Database queries** — connect to Postgres, MySQL, SQLite, or any other database per request
+    - **Third-party API proxying** — keep API keys server-side and expose a clean endpoint to the client
+    - **Dynamic OG images** — generate social preview images on the fly
+
+    <Callout type="info">
+        The full [astrocourse.dev](https://astrocourse.dev) course covers building a complete authentication system using Astro SSR, cookies, and a [Xata](https://xata.io) database — a great next step after this crash course.
+    </Callout>
+
+    ---
+
+    ## Quick Reference
+
+    ### Essential CLI commands
+
+    ```bash
+    npm run dev          # Start dev server at localhost:4321
+    npm run build        # Build for production
+    npm run preview      # Preview the production build locally
+
+    npx astro add tailwind   # Add Tailwind CSS integration
+    npx astro add mdx        # Add MDX support
+    npx astro add netlify    # Add Netlify SSR adapter
+    npx astro add vercel     # Add Vercel SSR adapter
+    ```
+
+    ### Key imports
+
+    ```astro
+    ---
+    // Components & layouts
+    import Layout from '../layouts/Layout.astro'
+    import { Image } from 'astro:assets'
+    import { ViewTransitions } from 'astro:transitions'
+
+    // Content collections
+    import { getCollection, getEntryBySlug } from 'astro:content'
+    import type { CollectionEntry } from 'astro:content'
+
+    // SSR endpoints
+    import type { APIRoute } from 'astro'
+    ---
+    ```
+
+    ### `astro.config.mjs` at a glance
+
+    ```js
+    import { defineConfig } from 'astro/config'
+    import tailwind from '@astrojs/tailwind'
+    import mdx from '@astrojs/mdx'
+    import netlify from '@astrojs/netlify'   // or vercel
+
+    export default defineConfig({
+        integrations: [tailwind(), mdx()],
+        output: 'server',     // 'static' (default) | 'server' | 'hybrid'
+        adapter: netlify(),   // required when output is 'server' or 'hybrid'
+    })
+    ```
+
+    ---
+
+    ## Further Learning
+
+    - 📖 [Astro Documentation](https://docs.astro.build) — search with `Cmd+K` / `Ctrl+K`
+    - 🚀 [astro.new](https://astro.new) — interactive starter templates in StackBlitz
+    - 🎓 [astrocourse.dev](https://astrocourse.dev) — full Astro 3.0 course by James Q Quick
+    - 🤝 [Astro Community Discord](https://astro.build/chat)
