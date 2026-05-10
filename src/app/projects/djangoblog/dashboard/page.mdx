@@ -85,8 +85,9 @@ from blocks.models import Blog, Category
 def dashboard(request):
     context = {
         'category_count': Category.objects.all().count(),
-        'blog_count':     Blog.objects.all().count(),
+        'blog_count': Blog.objects.all().count(),
     }
+
     return render(request, 'dashboard/dashboard.html', context)
 ```
 
@@ -98,12 +99,13 @@ def dashboard(request):
 
 ```python
 # dashboards/forms.py
+
 from django import forms
 from blocks.models import Category
 
 class CategoryForm(forms.ModelForm):
     class Meta:
-        model  = Category
+        model = Category
         fields = '__all__'
 ```
 
@@ -120,23 +122,35 @@ def categories(request):
 def add_category(request):
     if request.method == 'POST':
         form = CategoryForm(request.POST)
+
         if form.is_valid():
             form.save()
             return redirect('categories')
+
     else:
         form = CategoryForm()
-    return render(request, 'dashboard/add_category.html', {'form': form})
+
+    return render(request, 'dashboard/add_category.html', {
+        'form': form
+    })
 
 def edit_category(request, pk):
     category = get_object_or_404(Category, pk=pk)
+
     if request.method == 'POST':
         form = CategoryForm(request.POST, instance=category)
+
         if form.is_valid():
             form.save()
             return redirect('categories')
+
     else:
         form = CategoryForm(instance=category)
-    return render(request, 'dashboard/edit_category.html', {'form': form, 'category': category})
+
+    return render(request, 'dashboard/edit_category.html', {
+        'form': form,
+        'category': category
+    })
 
 def delete_category(request, pk):
     get_object_or_404(Category, pk=pk).delete()
@@ -154,9 +168,16 @@ from blocks.models import Blog
 
 class BlogPostForm(forms.ModelForm):
     class Meta:
-        model  = Blog
-        fields = ['title', 'category', 'featured_image',
-                  'short_description', 'blog_body', 'status', 'is_featured']
+        model = Blog
+        fields = [
+            'title',
+            'category',
+            'featured_image',
+            'short_description',
+            'blog_body',
+            'status',
+            'is_featured'
+        ]
 ```
 
 <Callout type="warning">
@@ -171,21 +192,30 @@ from django.template.defaultfilters import slugify
 def add_post(request):
     if request.method == 'POST':
         form = BlogPostForm(request.POST, request.FILES)
+
         if form.is_valid():
-            post        = form.save(commit=False)   # hold — don't write yet
+            post = form.save(commit=False)
+
             post.author = request.user
-            post.save()                             # save to get an ID
-            title      = form.cleaned_data['title']
-            post.slug  = slugify(title) + '-' + str(post.id)
             post.save()
+
+            title = form.cleaned_data['title']
+            post.slug = slugify(title) + '-' + str(post.id)
+
+            post.save()
+
             return redirect('post')
+
     else:
         form = BlogPostForm()
-    return render(request, 'dashboard/add_post.html', {'form': form})
+
+    return render(request, 'dashboard/add_post.html', {
+        'form': form
+    })
 ```
 
 <Callout type="warning">
-    Any form containing an image or file upload **must** have `enctype="multipart/form-data"` on the `<form>` tag, and pass `request.FILES` alongside `request.POST` in the view.
+    Any form containing an image or file upload must have `enctype="multipart/form-data"` on the `<form>` tag, and pass `request.FILES` alongside `request.POST` in the view.
 </Callout>
 
 The add post template form tag:
@@ -194,7 +224,10 @@ The add post template form tag:
 <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     {{ form|crispy }}
-    <button type="submit" class="btn btn-warning">Submit</button>
+
+    <button type="submit" class="btn btn-warning">
+        Submit
+    </button>
 </form>
 ```
 
@@ -203,17 +236,31 @@ The add post template form tag:
 ```python
 def edit_post(request, pk):
 post = get_object_or_404(Blog, pk=pk)
+
 if request.method == 'POST':
-form = BlogPostForm(request.POST, request.FILES, instance=post)
+form = BlogPostForm(
+request.POST,
+request.FILES,
+instance=post
+)
+
 if form.is_valid():
-post      = form.save(commit=False)
-title     = form.cleaned_data['title']
+post = form.save(commit=False)
+
+title = form.cleaned_data['title']
 post.slug = slugify(title) + '-' + str(post.id)
+
 post.save()
+
 return redirect('post')
+
 else:
 form = BlogPostForm(instance=post)
-return render(request, 'dashboard/edit_post.html', {'form': form, 'post': post})
+
+return render(request, 'dashboard/edit_post.html', {
+'form': form,
+    'post': post
+})
 ```
 
 ### Delete Post
@@ -228,8 +275,9 @@ return redirect('post')
 
 ## User Management (Manager only)
 
-<Tabs>
-    <Tabs.Tab label="Add User Form">
+<Tabs items={['Add User Form', 'Edit User Form', 'Views']}>
+
+    <Tabs.Tab>
 
         ```python
         from django.contrib.auth.forms import UserCreationForm
@@ -237,52 +285,96 @@ return redirect('post')
 
         class AddUserForm(UserCreationForm):
         class Meta:
-        model  = User
-        fields = ['username', 'email', 'first_name', 'last_name',
-        'is_active', 'is_staff', 'is_superuser',
-        'groups', 'user_permissions']
+        model = User
+
+        fields = [
+        'username',
+        'email',
+        'first_name',
+        'last_name',
+        'is_active',
+        'is_staff',
+        'is_superuser',
+        'groups',
+        'user_permissions'
+        ]
         ```
 
     </Tabs.Tab>
-    <Tabs.Tab label="Edit User Form">
+
+    <Tabs.Tab>
 
         ```python
+        from django import forms
+        from django.contrib.auth.models import User
+
         class EditUserForm(forms.ModelForm):
-        """No password fields — passwords are managed by the user themselves."""
+        """
+        No password fields —
+        passwords are managed by the user themselves.
+        """
+
         class Meta:
-        model  = User
-        fields = ['username', 'email', 'first_name', 'last_name',
-        'is_active', 'is_staff', 'is_superuser',
-        'groups', 'user_permissions']
+        model = User
+
+        fields = [
+        'username',
+        'email',
+        'first_name',
+        'last_name',
+        'is_active',
+        'is_staff',
+        'is_superuser',
+        'groups',
+        'user_permissions'
+        ]
         ```
 
     </Tabs.Tab>
-    <Tabs.Tab label="Views">
+
+    <Tabs.Tab>
 
         ```python
         from django.contrib.auth.models import User
+        from django.shortcuts import render, redirect, get_object_or_404
+
         from .forms import AddUserForm, EditUserForm
 
         def users(request):
-        return render(request, 'dashboard/users.html', {'users': User.objects.all()})
+        return render(request, 'dashboard/users.html', {
+        'users': User.objects.all()
+    })
 
         def add_user(request):
         if request.method == 'POST':
         form = AddUserForm(request.POST)
+
         if form.is_valid():
         form.save()
         return redirect('users')
+
         else:
         form = AddUserForm()
-        return render(request, 'dashboard/add_user.html', {'form': form})
+
+        return render(request, 'dashboard/add_user.html', {
+        'form': form
+    })
 
         def edit_user(request, pk):
         user = get_object_or_404(User, pk=pk)
-        form = EditUserForm(request.POST or None, instance=user)
+
+        form = EditUserForm(
+        request.POST or None,
+        instance=user
+        )
+
         if form.is_valid():
         form.save()
         return redirect('users')
-        return render(request, 'dashboard/edit_user.html', {'form': form})
+
+        return render(request, 'dashboard/edit_user.html', {
+        'form': form
+    })
 
         def delete_user(request, pk):
         get_object_or_404(User, pk=pk).delete()
@@ -290,6 +382,7 @@ return redirect('post')
         ```
 
     </Tabs.Tab>
+
 </Tabs>
 
 <Callout>
