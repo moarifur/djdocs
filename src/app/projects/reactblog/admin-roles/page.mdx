@@ -1,0 +1,124 @@
+import { Callout, Steps } from 'nextra/components'
+
+# Admin & Roles
+
+This page explains how to set up admin roles in Clerk, expose them to the client and server, and guard sensitive actions on both sides.
+
+---
+
+## How Roles Work
+
+Roles are stored in Clerk's **Public Metadata** for each user, then forwarded to the backend via the session JWT. This means:
+
+- The client can show or hide UI based on the role.
+- The backend independently verifies the role from the signed JWT — it never trusts a role claim sent in the request body.
+
+<Callout type="warning">
+    Always verify the role **server-side** in addition to hiding UI elements client-side. A determined user can bypass frontend checks with browser dev tools.
+</Callout>
+
+---
+
+## 1. Set the Admin Role in Clerk
+
+<Steps>
+
+    ### Open the Clerk Dashboard
+
+    Go to **Users** → select a user → **Public Metadata** and set:
+
+    ```json
+    { "role": "admin" }
+    ```
+
+    ### Expose the metadata in session tokens
+
+    Go to **Sessions** → **Customize session token** and add:
+
+    ```json
+    { "metadata": "{{user.public_metadata}}" }
+    ```
+
+    This embeds the public metadata (including `role`) into every JWT the user receives.
+
+</Steps>
+
+---
+
+## 2. Client-Side Role Check
+
+```jsx
+import { useUser } from '@clerk/clerk-react'
+
+const { user } = useUser()
+const isAdmin = user?.publicMetadata?.role === 'admin'
+
+// Conditionally render admin-only UI
+{isAdmin && <button onClick={handleFeaturePost}>Feature this post</button>}
+```
+
+---
+
+## 3. Server-Side Role Check
+
+In any controller that requires admin access:
+
+```js
+const role = req.auth?.sessionClaims?.metadata?.role
+
+if (role !== 'admin') {
+  return res.status(403).json({ message: 'Admins only' })
+}
+
+// proceed with admin action…
+```
+
+---
+
+## 4. Admin Actions
+
+### Feature / unfeature a post
+
+```js
+// PATCH /posts/feature
+export const featurePost = async (req, res) => {
+  const role = req.auth?.sessionClaims?.metadata?.role
+  if (role !== 'admin') return res.status(403).json({ message: 'Admins only' })
+
+  const post = await PostModel.findById(req.body.postId)
+  if (!post) return res.status(404).json({ message: 'Post not found' })
+
+  post.isFeatured = !post.isFeatured
+  await post.save()
+
+  res.status(200).json({ isFeatured: post.isFeatured })
+}
+```
+
+### Delete any post (admin) or own post (author)
+
+```js
+// DELETE /posts/:id
+export const deletePost = async (req, res) => {
+  const clerkUserId = req.auth?.userId
+  if (!clerkUserId) return res.status(401).json({ message: 'Not authenticated' })
+
+  const role = req.auth?.sessionClaims?.metadata?.role
+  const user = await UserModel.findOne({ clerkUserId })
+
+  const post = await PostModel.findById(req.params.id)
+  if (!post) return res.status(404).json({ message: 'Post not found' })
+
+  // Allow if admin, or if the post belongs to the requesting user
+  if (role !== 'admin' && post.user.toString() !== user._id.toString()) {
+    return res.status(403).json({ message: 'Forbidden' })
+  }
+
+  await post.deleteOne()
+  res.status(200).json({ message: 'Post deleted' })
+}
+```
+
+<Callout type="info">
+    The same pattern applies to comments: admins can delete any comment, while regular users can only delete their own.
+</Callout>

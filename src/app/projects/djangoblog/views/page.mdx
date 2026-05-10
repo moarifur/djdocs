@@ -1,0 +1,313 @@
+import { Callout } from 'nextra/components'
+
+# Views & Templates
+
+## Template Inheritance
+
+Instead of copy-pasting headers and footers, use a single `base.html`.
+
+`templates/base.html` holds the shared layout:
+
+```django
+<!DOCTYPE html>
+<html>
+<head>{% load static %} ...</head>
+<body>
+  <nav><!-- Navbar --></nav>
+
+  {% block content %}{% endblock %}
+
+  <footer><!-- Footer --></footer>
+</body>
+</html>
+```
+
+Every other template just extends it:
+
+```django
+{% extends 'base.html' %}
+
+{% block content %}
+  <!-- Page-specific content here -->
+{% endblock %}
+```
+
+<Callout type="tip">
+    Change the navbar **once** in `base.html` and it updates across every page instantly.
+</Callout>
+
+---
+
+## Context Processors
+
+To make `categories` and `social_links` available on **every** page without repeating queries, use context processors.
+
+Create `blocks/context_processors.py`:
+
+```python
+from .models import Category
+from assignments.models import SocialLink
+
+def get_categories(request):
+    return {'categories': Category.objects.all()}
+
+def get_social_links(request):
+    return {'social_links': SocialLink.objects.all()}
+```
+
+Register both in `settings.py`:
+
+```python
+TEMPLATES = [{
+    'OPTIONS': {
+        'context_processors': [
+            ...
+            'blocks.context_processors.get_categories',
+            'blocks.context_processors.get_social_links',
+        ],
+    },
+}]
+```
+
+<Callout>
+    A context processor returns a dictionary that is merged into every template's context automatically — no need to pass it from each view individually.
+</Callout>
+
+---
+
+## Homepage View
+
+In `blog_main/views.py`:
+
+```python
+from django.shortcuts import render
+from blocks.models import Blog, Category
+
+def home(request):
+    featured_posts = Blog.objects.filter(
+        is_featured=True, status='published'
+    ).order_by('-updated_at')
+
+    posts = Blog.objects.filter(is_featured=False, status='published')
+
+    context = {
+        'featured_posts': featured_posts,
+        'posts':          posts,
+    }
+    return render(request, 'home.html', context)
+```
+
+Display the first featured post as a cover image in `home.html`:
+
+```django
+{% for post in featured_posts %}
+  {% if forloop.first %}
+    <div style="background-image: url('{{ post.featured_image.url }}')">
+      <h2>{{ post.title }}</h2>
+      <p>{{ post.short_description|truncatewords:25 }}</p>
+    </div>
+  {% endif %}
+{% endfor %}
+```
+
+Loop through remaining featured posts:
+
+```django
+{% for post in featured_posts %}
+  {% if not forloop.first %}
+    <h5>{{ post.title }}</h5>
+    <small>{{ post.created_at|timesince }} ago</small>
+  {% endif %}
+{% endfor %}
+```
+
+<Callout>
+    Use `|truncatewords:25` to cap description length, and `|timesince` to show human-readable timestamps like *"2 hours ago"*.
+</Callout>
+
+---
+
+## Posts by Category
+
+Add the URL in `blog_main/urls.py`:
+
+```python
+from django.urls import path, include
+
+urlpatterns = [
+    ...
+    path('category/', include('blocks.urls')),
+]
+```
+
+Create `blocks/urls.py`:
+
+```python
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('<int:category_id>/', views.post_by_category, name='post_by_category'),
+]
+```
+
+Write the view:
+
+```python
+from django.shortcuts import render, get_object_or_404, redirect
+from .models import Blog, Category
+
+def post_by_category(request, category_id):
+    category = get_object_or_404(Category, pk=category_id)
+    posts    = Blog.objects.filter(status='published', category=category_id)
+    context  = {'posts': posts, 'category': category}
+    return render(request, 'post_by_category.html', context)
+```
+
+Link categories in `base.html`:
+
+```django
+{% for cat in categories %}
+  <a href="{% url 'post_by_category' cat.id %}">{{ cat.category_name }}</a>
+{% endfor %}
+```
+
+<Callout>
+    Use `get_object_or_404` to show a proper 404 page when a category doesn't exist. Use a `try/except` with `redirect` when you want to silently send the user elsewhere instead.
+</Callout>
+
+---
+
+## Single Blog Post & Comments
+
+Add URL in `blog_main/urls.py`:
+
+```python
+path('blocks/<slug:slug>/', blocks_view.blocks, name='blocks'),
+```
+
+Write the view in `blocks/views.py`:
+
+```python
+from django.http import HttpResponseRedirect
+from django.shortcuts import render, get_object_or_404
+from .models import Blog, Comment
+
+def blocks(request, slug):
+    single_blog   = get_object_or_404(Blog, slug=slug, status='published')
+    comments      = Comment.objects.filter(blog=single_blog)
+    comment_count = comments.count()
+
+    if request.method == 'POST':
+        comment         = Comment()
+        comment.user    = request.user
+        comment.blog    = single_blog
+        comment.comment = request.POST.get('comment')
+        comment.save()
+        return HttpResponseRedirect(request.path_info)
+
+    context = {
+        'single_blog':   single_blog,
+        'comments':      comments,
+        'comment_count': comment_count,
+    }
+    return render(request, 'blocks.html', context)
+```
+
+Display comments and comment form in `blocks.html`:
+
+```django
+<h4>{{ comment_count }} Comments</h4>
+
+{% if comments %}
+  {% for comment in comments %}
+    <div class="card mt-1">
+      <div class="card-body">
+        <p class="card-text mb-0">{{ comment.comment }}</p>
+        <span>by {{ comment.user }} | {{ comment.created_at|timesince }} ago</span>
+      </div>
+    </div>
+  {% endfor %}
+{% else %}
+  <p>No comments yet.</p>
+{% endif %}
+
+{% if user.is_authenticated %}
+  <form method="post">
+    {% csrf_token %}
+    <textarea name="comment" class="form-control" placeholder="Write your comment..."></textarea>
+    <input type="submit" class="btn btn-primary mt-2" value="Submit">
+  </form>
+{% else %}
+  <p>Please <a href="{% url 'login' %}">login</a> to write a comment.</p>
+{% endif %}
+```
+
+<Callout type="warning">
+    Use `HttpResponseRedirect(request.path_info)` — not `redirect` — after saving a comment. This sends the user back to the same blog post URL instead of a named route.
+</Callout>
+
+---
+
+## Search
+
+Add URL in `blog_main/urls.py`:
+
+```python
+path('blocks/search/', blocks_view.search, name='search'),
+```
+
+Write the view:
+
+```python
+from django.db.models import Q
+
+def search(request):
+    keyword = request.GET.get('keyword')
+    blocks  = Blog.objects.filter(
+        Q(title__icontains=keyword) |
+        Q(short_description__icontains=keyword) |
+        Q(blog_body__icontains=keyword),
+        status='published'
+    )
+    context = {'blocks': blocks, 'keyword': keyword}
+    return render(request, 'search.html', context)
+```
+
+Add the search form to `base.html`:
+
+```django
+<form action="{% url 'search' %}" method="get">
+  <input type="text" name="keyword" value="{{ keyword }}" placeholder="Search...">
+  <button type="submit" class="btn btn-warning">Go</button>
+</form>
+```
+
+<Callout>
+    The `Q` object enables **OR** lookups. A comma between filter conditions acts as **AND**.
+</Callout>
+
+---
+
+## Custom 404 Page
+
+Create `templates/404.html`:
+
+```django
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Page Not Found</h2>
+  <p>The page you are looking for does not exist.</p>
+{% endblock %}
+```
+
+In `settings.py`, set the following to activate it:
+
+```python
+DEBUG        = False
+ALLOWED_HOSTS = ['*']
+```
+
+<Callout type="warning">
+    Revert to `DEBUG = True` after testing locally. The custom 404 page only renders when debug mode is off.
+</Callout>

@@ -8,6 +8,4 @@ export default {
     reactblog: {
         title: 'Blog With React',
     },
-
-
 };

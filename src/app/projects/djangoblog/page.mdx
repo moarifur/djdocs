@@ -1,4 +1,4 @@
-import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+import { Callout, FileTree } from 'nextra/components'
 
 # Build a Complete Django Blogging System
 
@@ -8,11 +8,7 @@ A comprehensive guide to building a full-featured, multi-role Django blog applic
     This guide is based on the **Tech with Ratan** premium Django project course. By the end, you'll have a portfolio-ready blogging system with role-based access control, a custom dashboard, and a live deployment on Python Anywhere.
 </Callout>
 
----
-
 ## What You'll Build
-
-The final project includes:
 
 - A dynamic homepage with featured posts, recent articles, and category filtering
 - SEO-friendly **slug-based URLs** (no raw primary keys)
@@ -21,52 +17,6 @@ The final project includes:
 - A **comment system** restricted to authenticated users
 - Full **CRUD operations** for posts, categories, and users
 - **Deployment** to Python Anywhere (free tier)
-
----
-
-## Project Setup
-
-<Steps>
-
-    ### Create the project folder and virtual environment
-
-    ```bash
-    # Create and enter the project directory
-    mkdir blog && cd blog
-
-    # Create virtual environment
-    python -m venv env
-
-    # Activate it
-    source env/bin/activate   # macOS/Linux
-    env\Scripts\activate      # Windows
-
-    # Install Django
-    pip install django
-
-    # Upgrade pip (optional but recommended)
-    pip install --upgrade pip
-    ```
-
-    ### Create the Django project and run the server
-
-    ```bash
-    django-admin startproject blog_main .
-    python manage.py runserver
-    ```
-
-    ### Apply default migrations and create a superuser
-
-    ```bash
-    python manage.py migrate
-    python manage.py createsuperuser
-    ```
-
-    <Callout type="warning">
-        Always run `migrate` before `createsuperuser` — the default auth tables must exist first.
-    </Callout>
-
-</Steps>
 
 ---
 
@@ -80,7 +30,7 @@ The final project includes:
             <FileTree.File name="views.py" />
             <FileTree.File name="forms.py" />
         </FileTree.Folder>
-        <FileTree.Folder name="blocks" defaultOpen>
+        <FileTree.Folder name="blocks">
             <FileTree.File name="models.py" />
             <FileTree.File name="views.py" />
             <FileTree.File name="urls.py" />
@@ -92,7 +42,6 @@ The final project includes:
             <FileTree.File name="admin.py" />
         </FileTree.Folder>
         <FileTree.Folder name="dashboards">
-            <FileTree.File name="models.py" />
             <FileTree.File name="views.py" />
             <FileTree.File name="urls.py" />
             <FileTree.File name="forms.py" />
@@ -129,105 +78,113 @@ The final project includes:
         <FileTree.File name="manage.py" />
         <FileTree.File name="requirements.txt" />
         <FileTree.File name=".gitignore" />
-        <FileTree.File name="db.sqlite3" />
     </FileTree.Folder>
 </FileTree>
 
 ---
 
+## Project Setup
+
+Create and enter the project directory, then set up your virtual environment:
+
+```bash
+mkdir blog && cd blog
+python -m venv env
+source venv/Scripts/activate   # macOS/Linux
+venv\Scripts\activate    # Windows
+pip install django
+```
+
+Create the Django project and verify the installation:
+
+```bash
+django-admin startproject blog_main .
+python manage.py runserver
+```
+
+Apply default migrations and create a superuser:
+
+```bash
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+<Callout type="warning">
+    Always run `migrate` before `createsuperuser` — the default auth tables must exist first.
+</Callout>
+
+---
+
 ## Homepage & Static Files
 
-<Steps>
+Add a home URL in `blog_main/urls.py`:
 
-    ### Create a homepage view
+```python
+from django.contrib import admin
+from django.urls import path
+from . import views
 
-    In `blog_main/urls.py`, add an empty-string path pointing to a `home` view:
-
-    ```python
-    from django.contrib import admin
-    from django.urls import path
-    from . import views
-
-    urlpatterns = [
+urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.home, name='home'),
-    ]
-    ```
+]
+```
 
-    Then create `blog_main/views.py`:
+Create `blog_main/views.py`:
 
-    ```python
-    from django.shortcuts import render
+```python
+from django.shortcuts import render
 
-    def home(request):
+def home(request):
     return render(request, 'home.html')
-    ```
+```
 
-    ### Configure the templates directory
+In `settings.py`, register the templates directory:
 
-    In `blog_main/settings.py`, add `'templates'` to the `DIRS` list:
+```python
+TEMPLATES = [{'DIRS': ['templates'], ...}]
+```
 
-    ```python
-    TEMPLATES = [
-    {
-        ...
-            'DIRS': ['templates'],
-        ...
-    },
-    ]
-    ```
+Configure static files:
 
-    ### Configure static files
+```python
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'static'
+STATICFILES_DIRS = [BASE_DIR / 'blog_main' / 'static']
+```
 
-    ```python
-    # settings.py
-    STATIC_URL = '/static/'
-    STATIC_ROOT = BASE_DIR / 'static'
-    STATICFILES_DIRS = [BASE_DIR / 'blog_main' / 'static']
-    ```
+Configure media files:
 
-    At the top of any template that uses static files:
+```python
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+```
 
-    ```django
-    {% load static %}
-    ```
+In `blog_main/urls.py`, serve media in development:
 
-    Reference a static asset:
+```python
+from django.conf import settings
+from django.conf.urls.static import static
 
-    ```django
-    <link rel="stylesheet" href="{% static 'css/blog.css' %}">
-        ```
+urlpatterns = [...] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
 
-        ### Configure media files
+Use static files in templates — load static at the top, then reference assets:
 
-        ```python
-        # settings.py
-        MEDIA_URL = '/media/'
-        MEDIA_ROOT = BASE_DIR / 'media'
-        ```
-
-        In `blog_main/urls.py`:
-
-        ```python
-        from django.conf import settings
-        from django.conf.urls.static import static
-
-        urlpatterns = [
-        ...
-        ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-        ```
-
-</Steps>
+```django
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/blog.css' %}">
+```
 
 ---
 
 ## Git Setup
 
 <Callout type="tip">
-    Always add a `.gitignore` before your first commit. Use [gitignore.io](https://gitignore.io) — search for **Django** to generate one automatically.
+    Use [gitignore.io](https://gitignore.io) — search **Django** to generate a `.gitignore` automatically.
 </Callout>
 
-Key entries to keep in `.gitignore` until you're ready to deploy:
+Key entries to keep in `.gitignore` during development:
 
 ```
 env/
@@ -238,7 +195,7 @@ media/
 ```
 
 <Callout type="warning">
-    Remove `db.sqlite3` and `media/` from `.gitignore` **before your deployment commit** so the data and uploads travel to the server with your code.
+    Remove `db.sqlite3` and `media/` from `.gitignore` **before your deployment commit** so your data and uploads travel to the server with your code.
 </Callout>
 
 ```bash
@@ -249,972 +206,3 @@ git branch -M main
 git remote add origin https://github.com/YOUR_USERNAME/django-blog.git
 git push -u origin main
 ```
-
----
-
-## Data Models
-
-### Category Model
-
-In `blocks/models.py`:
-
-```python
-from django.db import models
-
-class Category(models.Model):
-category_name = models.CharField(max_length=50, unique=True)
-created_at    = models.DateTimeField(auto_now_add=True)
-updated_at    = models.DateTimeField(auto_now=True)
-
-class Meta:
-verbose_name_plural = 'Categories'
-
-def __str__(self):
-return self.category_name
-```
-
-### Blog Post Model
-
-```python
-from django.contrib.auth.models import User
-
-class Blog(models.Model):
-STATUS_CHOICES = (
-('draft',      'Draft'),
-('published',  'Published'),
-)
-
-title           = models.CharField(max_length=100)
-slug            = models.SlugField(max_length=150, unique=True, blank=True)
-category        = models.ForeignKey(Category, on_delete=models.CASCADE)
-author          = models.ForeignKey(User, on_delete=models.CASCADE)
-featured_image  = models.ImageField(upload_to='uploads/%Y/%m/%d/')
-short_description = models.TextField(max_length=500)
-blog_body       = models.TextField(max_length=2000)
-status          = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
-is_featured     = models.BooleanField(default=False)
-created_at      = models.DateTimeField(auto_now_add=True)
-updated_at      = models.DateTimeField(auto_now=True)
-
-def __str__(self):
-return self.title
-```
-
-<Callout type="warning">
-    The `ImageField` requires **Pillow**. Install it before running migrations:
-    ```bash
-    pip install pillow
-    ```
-</Callout>
-
-### Comment Model
-
-```python
-class Comment(models.Model):
-user       = models.ForeignKey(User, on_delete=models.CASCADE)
-blog       = models.ForeignKey(Blog, on_delete=models.CASCADE)
-comment    = models.TextField(max_length=250)
-created_at = models.DateTimeField(auto_now_add=True)
-updated_at = models.DateTimeField(auto_now=True)
-
-def __str__(self):
-return self.comment
-```
-
-### Apply Migrations
-
-```bash
-python manage.py makemigrations
-python manage.py migrate
-```
-
----
-
-## Admin Configuration
-
-In `blocks/admin.py`:
-
-```python
-from django.contrib import admin
-from .models import Category, Blog, Comment
-
-class BlogAdmin(admin.ModelAdmin):
-prepopulated_fields = {'slug': ('title',)}
-list_display  = ('title', 'category', 'author', 'status', 'is_featured')
-search_fields = ('id', 'title', 'category__category_name', 'status')
-list_editable = ('is_featured',)
-
-admin.site.register(Category)
-admin.site.register(Blog, BlogAdmin)
-admin.site.register(Comment)
-```
-
-<Callout>
-    `prepopulated_fields` auto-generates the slug as you type the title in the admin panel.
-</Callout>
-
----
-
-## Foreign Key Relationships
-
-Understanding the **many-to-one** (ForeignKey) relationships in this project:
-
-| Relationship | Rule |
-|---|---|
-| Category → Blog | One category can have **many** blog posts |
-| Blog → Category | Each blog post belongs to **one** category |
-| User → Blog | One user (author) can write **many** posts |
-| Blog → User | Each post is written by **one** author |
-| User → Comment | A user can write **many** comments |
-| Blog → Comment | A blog can have **many** comments |
-
-<Callout type="info">
-    When you use a ForeignKey field (e.g. `category`), Django stores the **ID** of the related object — not its name. In the database table the column will be named `category_id`.
-</Callout>
-
----
-
-## Displaying Posts on the Homepage
-
-In `blog_main/views.py`:
-
-```python
-from django.shortcuts import render
-from blocks.models import Blog, Category
-
-def home(request):
-featured_posts = Blog.objects.filter(is_featured=True, status='published').order_by('-updated_at')
-posts          = Blog.objects.filter(is_featured=False, status='published')
-
-context = {
-'featured_posts': featured_posts,
-    'posts':          posts,
-}
-return render(request, 'home.html', context)
-```
-
-In `home.html` — display the first featured post as the cover image:
-
-```django
-{% for post in featured_posts %}
-{% if forloop.first %}
-<div style="background-image: url('{{ post.featured_image.url }}')">
-    <h2>{{ post.title }}</h2>
-    <p>{{ post.short_description|truncatewords:25 }}</p>
-</div>
-{% endif %}
-{% endfor %}
-```
-
-Loop through remaining featured posts:
-
-```django
-{% for post in featured_posts %}
-{% if not forloop.first %}
-<h5>{{ post.title }}</h5>
-<small>{{ post.created_at|timesince }} ago</small>
-{% endif %}
-{% endfor %}
-```
-
-<Callout>
-    Use `|truncatewords:25` to limit description length, and `|timesince` to display human-readable timestamps like *"2 hours ago"*.
-</Callout>
-
----
-
-## Template Inheritance
-
-Instead of copy-pasting headers and footers across every template, use a single `base.html`.
-
-**`templates/base.html`** — holds the shared layout:
-
-```django
-<!DOCTYPE html>
-<html>
-<head>...</head>
-<body>
-<!-- Header / Navbar -->
-<nav>...</nav>
-
-<!-- Dynamic content goes here -->
-{% block content %}{% endblock %}
-
-<!-- Footer -->
-<footer>...</footer>
-</body>
-</html>
-```
-
-**Every other template** just extends it:
-
-```django
-{% extends 'base.html' %}
-
-{% block content %}
-<!-- Page-specific content -->
-{% endblock %}
-```
-
-<Callout type="tip">
-    If you need to update the navbar, change it **once** in `base.html` and every page reflects it instantly — no more hunting through 10 files.
-</Callout>
-
----
-
-## Context Processors
-
-To make `categories` and `social_links` available on **every** page without repeating queries in each view, use a context processor.
-
-Create `blocks/context_processors.py`:
-
-```python
-from .models import Category
-from assignments.models import SocialLink
-
-def get_categories(request):
-categories = Category.objects.all()
-return {'categories': categories}
-
-def get_social_links(request):
-social_links = SocialLink.objects.all()
-return {'social_links': social_links}
-```
-
-Register both in `settings.py`:
-
-```python
-TEMPLATES = [{
-'OPTIONS': {
-    'context_processors': [
-        ...
-            'blocks.context_processors.get_categories',
-        'blocks.context_processors.get_social_links',
-    ],
-},
-}]
-```
-
----
-
-## Posts by Category
-
-<Steps>
-
-    ### Add URL patterns
-
-    In `blog_main/urls.py`, forward any `/category/` request to the `blocks` app:
-
-    ```python
-    from django.urls import path, include
-
-    urlpatterns = [
-    ...
-    path('category/', include('blocks.urls')),
-    ]
-    ```
-
-    ### Create `blocks/urls.py`
-
-    ```python
-    from django.urls import path
-    from . import views
-
-    urlpatterns = [
-    path('<int:category_id>/', views.post_by_category, name='post_by_category'),
-    ]
-    ```
-
-    ### Write the view
-
-    ```python
-    from django.shortcuts import render, get_object_or_404, redirect
-    from .models import Blog, Category
-
-    def post_by_category(request, category_id):
-    category = get_object_or_404(Category, pk=category_id)
-    posts    = Blog.objects.filter(status='published', category=category_id)
-    context  = {'posts': posts, 'category': category}
-    return render(request, 'post_by_category.html', context)
-    ```
-
-</Steps>
-
-<Callout>
-    Use `get_object_or_404` to show a proper 404 page when a category doesn't exist.
-    Use a `try/except` with `redirect` when you want to silently send the user elsewhere instead.
-</Callout>
-
----
-
-## Single Blog Post Page
-
-<Steps>
-
-    ### Add URL pattern
-
-    In `blog_main/urls.py`:
-
-    ```python
-    path('blocks/<slug:slug>/', blocks_view.blocks, name='blocks'),
-    ```
-
-    ### Write the view
-
-    ```python
-    from django.shortcuts import get_object_or_404
-    from .models import Blog, Comment
-
-    def blocks(request, slug):
-    single_blog   = get_object_or_404(Blog, slug=slug, status='published')
-    comments      = Comment.objects.filter(blog=single_blog)
-    comment_count = comments.count()
-
-    if request.method == 'POST':
-    comment        = Comment()
-    comment.user   = request.user
-    comment.blog   = single_blog
-    comment.comment = request.POST.get('comment')
-    comment.save()
-    from django.http import HttpResponseRedirect
-    return HttpResponseRedirect(request.path_info)
-
-    context = {
-        'single_blog':   single_blog,
-        'comments':      comments,
-        'comment_count': comment_count,
-    }
-    return render(request, 'blocks.html', context)
-    ```
-
-    ### Link post titles on the homepage
-
-    ```django
-    <a href="{% url 'blocks' post.slug %}" class="text-dark">{{ post.title }}</a>
-    ```
-
-</Steps>
-
----
-
-## Search Functionality
-
-<Steps>
-
-    ### Add the URL
-
-    ```python
-    path('blocks/search/', blocks_view.search, name='search'),
-    ```
-
-    ### Write the view
-
-    ```python
-    from django.db.models import Q
-
-    def search(request):
-    keyword = request.GET.get('keyword')
-    blocks  = Blog.objects.filter(
-    Q(title__icontains=keyword) |
-    Q(short_description__icontains=keyword) |
-    Q(blog_body__icontains=keyword),
-    status='published'
-    )
-    context = {'blocks': blocks, 'keyword': keyword}
-    return render(request, 'search.html', context)
-    ```
-
-    ### Add the search form to `base.html`
-
-    ```django
-    <form action="{% url 'search' %}" method="get">
-        <div class="input-group">
-            <input type="text" name="keyword" value="{{ keyword }}" placeholder="Search...">
-                <button type="submit" class="btn btn-warning">Go</button>
-        </div>
-    </form>
-    ```
-
-</Steps>
-
-<Callout>
-    The `Q` object enables **OR** lookups. A comma (`,`) between conditions acts as **AND**.
-</Callout>
-
----
-
-## Custom 404 Page
-
-Create `templates/404.html` with any design you like:
-
-```django
-{% extends 'base.html' %}
-{% block content %}
-<h2>Page Not Found</h2>
-<p>The category or page you're looking for does not exist.</p>
-{% endblock %}
-```
-
-Then in `settings.py`, temporarily set:
-
-```python
-DEBUG = False
-ALLOWED_HOSTS = ['*']
-```
-
-Django will serve your `404.html` for any not-found error in production mode.
-
-<Callout type="warning">
-    Always set `DEBUG = True` and revert `ALLOWED_HOSTS` for local development after testing.
-</Callout>
-
----
-
-## Authentication
-
-### Registration
-
-<Tabs>
-    <Tabs.Tab label="forms.py">
-        ```python
-        from django.contrib.auth.forms import UserCreationForm
-        from django.contrib.auth.models import User
-
-        class RegistrationForm(UserCreationForm):
-        class Meta:
-        model  = User
-        fields = ['email', 'username', 'password1', 'password2']
-        ```
-    </Tabs.Tab>
-    <Tabs.Tab label="views.py">
-        ```python
-        from django.shortcuts import render, redirect
-        from .forms import RegistrationForm
-
-        def register(request):
-        if request.method == 'POST':
-        form = RegistrationForm(request.POST)
-        if form.is_valid():
-        form.save()
-        return redirect('register')
-        else:
-        form = RegistrationForm()
-        return render(request, 'register.html', {'form': form})
-        ```
-    </Tabs.Tab>
-    <Tabs.Tab label="register.html">
-        ```django
-        {% extends 'base.html' %}
-        {% load crispy_forms_tags %}
-
-        {% block content %}
-        <h3 class="text-center">Register</h3>
-        <div style="width:500px; margin:auto">
-            <form method="post" action="{% url 'register' %}">
-                {% csrf_token %}
-                {{ form|crispy }}
-                <button type="submit" class="btn btn-warning">Submit</button>
-            </form>
-        </div>
-        {% endblock %}
-        ```
-    </Tabs.Tab>
-</Tabs>
-
-### Login & Logout
-
-```python
-from django.contrib.auth.forms import AuthenticationForm
-from django.contrib import auth
-
-def login(request):
-if request.method == 'POST':
-form = AuthenticationForm(request, data=request.POST)
-if form.is_valid():
-username = form.cleaned_data.get('username')
-password = form.cleaned_data.get('password')
-user     = auth.authenticate(username=username, password=password)
-if user is not None:
-auth.login(request, user)
-return redirect('dashboard')
-else:
-form = AuthenticationForm()
-return render(request, 'login.html', {'form': form})
-
-def log_out(request):
-auth.logout(request)
-return redirect('home')
-```
-
-### Django Crispy Forms
-
-```bash
-pip install django-crispy-forms crispy-bootstrap4
-```
-
-```python
-# settings.py
-INSTALLED_APPS = [
-...
-'crispy_forms',
-'crispy_bootstrap4',
-]
-CRISPY_TEMPLATE_PACK = 'bootstrap4'
-```
-
----
-
-## Permissions & Groups
-
-Django auto-generates four permissions for every model: `add`, `change`, `delete`, `view`.
-
-### Roles in this project
-
-| Role | Permissions |
-|---|---|
-| **Super Admin** | Everything |
-| **Manager** | Manage users + all blog/category permissions |
-| **Editor** | Blog post & category CRUD only |
-
-### Creating a Manager group
-
-In the Django admin panel:
-
-1. Go to **Groups** → **Add Group**
-2. Name it `manager`
-3. Select permissions: `auth | user | Can add/change/delete/view user` + blog/category permissions
-4. Save and assign users to this group
-
-### Checking permissions in templates
-
-```django
-{# Show "Users" sidebar link only to managers #}
-{% if perms.auth.view_user %}
-<a href="{% url 'users' %}">Users</a>
-{% endif %}
-```
-
----
-
-## Dashboard App
-
-<Steps>
-
-    ### Create the app
-
-    ```bash
-    python manage.py startapp dashboards
-    ```
-
-    Register it in `settings.py` under `INSTALLED_APPS`.
-
-    ### URL routing
-
-    In `blog_main/urls.py`:
-
-    ```python
-    path('dashboard/', include('dashboards.urls')),
-    ```
-
-    ### Protect every dashboard view with `login_required`
-
-    ```python
-    from django.contrib.auth.decorators import login_required
-
-    @login_required(login_url='login')
-    def dashboard(request):
-    category_count = Category.objects.all().count()
-    blog_count     = Blog.objects.all().count()
-    context = {'category_count': category_count, 'blog_count': blog_count}
-    return render(request, 'dashboard/dashboard.html', context)
-    ```
-
-    ### Reusable sidebar with `{% include %}`
-
-    Extract the sidebar into `templates/dashboard/sidebar.html` and include it everywhere:
-
-    ```django
-    {% include 'dashboard/sidebar.html' %}
-    ```
-
-    Highlight the active tab dynamically:
-
-    ```django
-    <a href="{% url 'dashboard' %}"
-       class="nav-link {% if '/dashboard/' == request.path %}bg-warning{% endif %}">
-        Dashboard
-    </a>
-
-    <a href="{% url 'categories' %}"
-       class="nav-link {% if 'categories' in request.path %}bg-warning{% endif %}">
-        Categories
-    </a>
-    ```
-
-</Steps>
-
----
-
-## Category CRUD
-
-<Tabs>
-    <Tabs.Tab label="forms.py">
-        ```python
-        from django import forms
-        from blocks.models import Category
-
-        class CategoryForm(forms.ModelForm):
-        class Meta:
-        model  = Category
-        fields = '__all__'
-        ```
-    </Tabs.Tab>
-    <Tabs.Tab label="views.py">
-        ```python
-        from django.shortcuts import render, redirect, get_object_or_404
-        from .forms import CategoryForm
-        from blocks.models import Category
-
-        def categories(request):
-        return render(request, 'dashboard/categories.html')
-
-        def add_category(request):
-        if request.method == 'POST':
-        form = CategoryForm(request.POST)
-        if form.is_valid():
-        form.save()
-        return redirect('categories')
-        else:
-        form = CategoryForm()
-        return render(request, 'dashboard/add_category.html', {'form': form})
-
-        def edit_category(request, pk):
-        category = get_object_or_404(Category, pk=pk)
-        if request.method == 'POST':
-        form = CategoryForm(request.POST, instance=category)
-        if form.is_valid():
-        form.save()
-        return redirect('categories')
-        else:
-        form = CategoryForm(instance=category)
-        context = {'form': form, 'category': category}
-        return render(request, 'dashboard/edit_category.html', context)
-
-        def delete_category(request, pk):
-        category = get_object_or_404(Category, pk=pk)
-        category.delete()
-        return redirect('categories')
-        ```
-    </Tabs.Tab>
-    <Tabs.Tab label="urls.py">
-        ```python
-        from django.urls import path
-        from . import views
-
-        urlpatterns = [
-        path('',                          views.dashboard,     name='dashboard'),
-        path('categories/',               views.categories,    name='categories'),
-        path('categories/add/',           views.add_category,  name='add_category'),
-        path('categories/edit/<int:pk>/', views.edit_category, name='edit_category'),
-        path('categories/delete/<int:pk>/', views.delete_category, name='delete_category'),
-            ]
-            ```
-    </Tabs.Tab>
-</Tabs>
-
----
-
-## Blog Post CRUD
-
-### The Post Form
-
-```python
-# dashboards/forms.py
-from django import forms
-from blocks.models import Blog
-
-class BlogPostForm(forms.ModelForm):
-class Meta:
-model  = Blog
-# Exclude author and slug — these are set programmatically
-fields = ['title', 'category', 'featured_image',
-'short_description', 'blog_body', 'status', 'is_featured']
-```
-
-<Callout>
-    **Never expose `author` or `slug` fields to editors.** The author should always be the logged-in user, and the slug is generated from the title automatically.
-</Callout>
-
-### Adding a Post with Auto-Slug
-
-```python
-from django.template.defaultfilters import slugify
-
-def add_post(request):
-if request.method == 'POST':
-form = BlogPostForm(request.POST, request.FILES)  # FILES for images!
-if form.is_valid():
-post        = form.save(commit=False)   # don't save yet
-post.author = request.user              # assign logged-in user
-post.save()                             # save to get an ID
-title      = form.cleaned_data['title']
-post.slug  = slugify(title) + '-' + str(post.id)  # unique slug
-post.save()
-return redirect('post')
-else:
-form = BlogPostForm()
-return render(request, 'dashboard/add_post.html', {'form': form})
-```
-
-<Callout type="warning">
-    Always add `enctype="multipart/form-data"` to any `<form>` that contains an image or file field, and pass `request.FILES` alongside `request.POST` in the view.
-</Callout>
-
-### Editing a Post
-
-```python
-def edit_post(request, pk):
-post = get_object_or_404(Blog, pk=pk)
-if request.method == 'POST':
-form  = BlogPostForm(request.POST, request.FILES, instance=post)
-if form.is_valid():
-post       = form.save(commit=False)
-title      = form.cleaned_data['title']
-post.slug  = slugify(title) + '-' + str(post.id)
-post.save()
-return redirect('post')
-else:
-form = BlogPostForm(instance=post)
-context = {'form': form, 'post': post}
-return render(request, 'dashboard/edit_post.html', context)
-```
-
----
-
-## User Management (Manager Role)
-
-<Tabs>
-    <Tabs.Tab label="Add User Form">
-        ```python
-        from django.contrib.auth.forms import UserCreationForm
-        from django.contrib.auth.models import User
-
-        class AddUserForm(UserCreationForm):
-        class Meta:
-        model  = User
-        fields = ['username', 'email', 'first_name', 'last_name',
-        'is_active', 'is_staff', 'is_superuser',
-        'groups', 'user_permissions']
-        ```
-    </Tabs.Tab>
-    <Tabs.Tab label="Edit User Form">
-        ```python
-        from django import forms
-
-        class EditUserForm(forms.ModelForm):
-        """Does NOT include password fields — passwords are managed by the user."""
-        class Meta:
-        model  = User
-        fields = ['username', 'email', 'first_name', 'last_name',
-        'is_active', 'is_staff', 'is_superuser',
-        'groups', 'user_permissions']
-        ```
-    </Tabs.Tab>
-    <Tabs.Tab label="views.py">
-        ```python
-        from django.contrib.auth.models import User
-        from .forms import AddUserForm, EditUserForm
-
-        def users(request):
-        all_users = User.objects.all()
-        return render(request, 'dashboard/users.html', {'users': all_users})
-
-        def add_user(request):
-        if request.method == 'POST':
-        form = AddUserForm(request.POST)
-        if form.is_valid():
-        form.save()
-        return redirect('users')
-        else:
-        form = AddUserForm()
-        return render(request, 'dashboard/add_user.html', {'form': form})
-
-        def edit_user(request, pk):
-        user = get_object_or_404(User, pk=pk)
-        form = EditUserForm(request.POST or None, instance=user)
-        if form.is_valid():
-        form.save()
-        return redirect('users')
-        return render(request, 'dashboard/edit_user.html', {'form': form})
-
-        def delete_user(request, pk):
-        user = get_object_or_404(User, pk=pk)
-        user.delete()
-        return redirect('users')
-        ```
-    </Tabs.Tab>
-</Tabs>
-
-Protect the users pages in templates so editors can't access them:
-
-```django
-{% if perms.auth.view_user %}
-<!-- Table of users + edit/delete buttons -->
-{% else %}
-<h5>You do not have permission to view this page.</h5>
-{% endif %}
-```
-
----
-
-## About & Social Links (Assignment Models)
-
-### About Model
-
-```python
-# assignments/models.py
-class About(models.Model):
-about_heading     = models.CharField(max_length=25)
-about_description = models.TextField(max_length=255)
-created_at        = models.DateTimeField(auto_now_add=True)
-updated_at        = models.DateTimeField(auto_now=True)
-
-class Meta:
-verbose_name_plural = 'About'
-
-def __str__(self):
-return self.about_heading
-```
-
-Prevent adding more than one About entry in `assignments/admin.py`:
-
-```python
-class AboutAdmin(admin.ModelAdmin):
-def has_add_permission(self, request):
-count = About.objects.all().count()
-return count == 0   # only allow add when table is empty
-
-admin.site.register(About, AboutAdmin)
-```
-
-### Social Link Model
-
-```python
-class SocialLink(models.Model):
-platform = models.CharField(max_length=25)
-link      = models.URLField(max_length=100)
-
-def __str__(self):
-return self.platform
-```
-
----
-
-## Deployment on Python Anywhere
-
-<Callout type="info">
-    Python Anywhere offers a **free tier** that hosts one Django application — perfect for portfolio projects.
-</Callout>
-
-<Steps>
-
-    ### Prepare your codebase
-
-    Remove `db.sqlite3` and `media/` from `.gitignore`, update `requirements.txt`, then push:
-
-    ```bash
-    pip freeze > requirements.txt
-    # Edit requirements.txt — add version marker for backports.zoneinfo if on Python < 3.9:
-    # backports.zoneinfo>=0.2.1; python_version < "3.9"
-
-    git add -A
-    git commit -m "Deployment"
-    git push origin main
-    ```
-
-    ### Clone the repo on Python Anywhere
-
-    Open a **Bash console** on Python Anywhere:
-
-    ```bash
-    git clone https://github.com/YOUR_USERNAME/django-blog.git
-    cd django-blog
-    ```
-
-    ### Create a virtual environment and install packages
-
-    ```bash
-    mkvirtualenv my-site-virtualenv --python=python3.10
-    pip install -r requirements.txt
-    ```
-
-    ### Configure the Web App
-
-    In the Python Anywhere **Web** tab:
-    - Click **Add a new web app** → **Manual configuration** → **Python 3.10**
-    - Set **Source code**: `/home/YOUR_USERNAME/django-blog`
-    - Set **Virtualenv**: `/home/YOUR_USERNAME/.virtualenvs/my-site-virtualenv`
-    - Set **Static files**: URL `/static/` → Directory `/home/YOUR_USERNAME/django-blog/static`
-
-    ### Edit the WSGI file
-
-    Paste this into the auto-generated WSGI file (replacing the existing content):
-
-    ```python
-    import sys, os
-    path = '/home/YOUR_USERNAME/django-blog'
-    if path not in sys.path:
-    sys.path.insert(0, path)
-    os.environ['DJANGO_SETTINGS_MODULE'] = 'blog_main.settings'
-    from django.core.wsgi import get_wsgi_application
-    application = get_wsgi_application()
-    ```
-
-    ### Collect static files and finalize settings
-
-    Back in the Bash console:
-
-    ```bash
-    python manage.py collectstatic
-    ```
-
-    In `blog_main/settings.py` (edit via the Files tab):
-
-    ```python
-    DEBUG        = False
-    ALLOWED_HOSTS = ['YOUR_USERNAME.pythonanywhere.com']
-
-    # Fix for Python Anywhere template resolution
-    TEMPLATES = [{
-    'DIRS': ['/home/YOUR_USERNAME/django-blog/templates'],
-    ...
-}]
-    ```
-
-    ### Reload the app
-
-    Click **Reload** in the Web tab. Your site is live at `https://YOUR_USERNAME.pythonanywhere.com` 🎉
-
-</Steps>
-
-<Callout type="tip">
-    If you see a **500 error**, temporarily set `DEBUG = True` to read the full traceback in the browser, fix the issue, then set it back to `False`.
-</Callout>
-
----
-
-## Key Takeaways
-
-| Concept | What You Learned |
-|---|---|
-| **Models & ForeignKey** | Relational data: blog → category, blog → author, comment → blog |
-| **Slug** | SEO-friendly URLs generated with `slugify` + post ID for uniqueness |
-| **Context Processors** | Share data (categories, social links) across all templates without repeating queries |
-| **Template Inheritance** | `base.html` + `{% block content %}` eliminates copy-paste |
-| **Model Forms** | Quickly build forms from model fields; use `commit=False` to add custom data before saving |
-| **File Uploads** | `enctype="multipart/form-data"` on the form + `request.FILES` in the view |
-| **Authentication** | Django's built-in `auth.login`, `auth.logout`, `auth.authenticate` |
-| **Permissions & Groups** | Fine-grained access control with `perms.app.permission` template tags |
-| **login_required** | Decorator that redirects unauthenticated users away from protected views |
-| **Q Objects** | OR-based database lookups for full-text search across multiple fields |
-| **Deployment** | Python Anywhere: clone → virtualenv → collectstatic → WSGI → reload |

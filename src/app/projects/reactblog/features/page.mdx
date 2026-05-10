@@ -1,0 +1,233 @@
+import { Callout, Steps } from 'nextra/components'
+
+# Features
+
+This page covers the major feature implementations: file uploads via ImageKit, the rich text editor, backend pagination, and URL-driven search and filter state.
+
+---
+
+## 1. File Upload with ImageKit
+
+<Steps>
+
+    ### Generate an upload auth token (backend)
+
+    ```js
+    // controllers/post.controller.js
+    import ImageKit from 'imagekit'
+
+    const imagekit = new ImageKit({
+    urlEndpoint: process.env.IK_URL_ENDPOINT,
+    publicKey:   process.env.IK_PUBLIC_KEY,
+    privateKey:  process.env.IK_PRIVATE_KEY,
+})
+
+    export const uploadAuth = async (req, res) => {
+    const result = imagekit.getAuthenticationParameters()
+    res.send(result)
+}
+    ```
+
+    ### Build a reusable Upload component (frontend)
+
+    ```jsx
+    // components/Upload.jsx
+    import { IKContext, IKUpload } from 'imagekitio-react'
+    import { useRef } from 'react'
+    import { toast } from 'react-toastify'
+
+    const authenticator = async () => {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/posts/upload-auth`)
+    if (!res.ok) throw new Error('Auth failed')
+    return res.json()
+}
+
+    export default function Upload({ children, type, setData, setProgress }) {
+    const ref = useRef(null)
+
+    return (
+    <IKContext
+    urlEndpoint={import.meta.env.VITE_IK_URL_ENDPOINT}
+    publicKey={import.meta.env.VITE_IK_PUBLIC_KEY}
+    authenticator={authenticator}
+>
+    <IKUpload
+        className="hidden"
+        ref={ref}
+        accept={type === 'image' ? 'image/*' : 'video/*'}
+        useUniqueFileName
+        onUploadProgress={(p) => setProgress(Math.round((p.loaded / p.total) * 100))}
+        onSuccess={(res) => setData(res)}
+        onError={() => toast.error('Upload failed')}
+    />
+    <div className="cursor-pointer" onClick={() => ref.current?.click()}>
+        {children}
+    </div>
+</IKContext>
+)
+}
+```
+
+### Use Upload in the Write page
+
+```jsx
+<Upload type="image" setData={setCover} setProgress={setProgress}>
+    <button>Add a cover image</button>
+</Upload>
+```
+
+</Steps>
+
+---
+
+## 2. Rich Text Editor (React Quill)
+
+```bash
+npm install -f react-quill-new
+```
+
+```jsx
+import ReactQuill from 'react-quill-new'
+import 'react-quill-new/dist/quill.snow.css'
+
+const [value, setValue] = useState('')
+
+<ReactQuill
+  theme="snow"
+  value={value}
+  onChange={setValue}
+  readOnly={uploadProgress > 0 && uploadProgress < 100}
+/>
+```
+
+Override Quill's default borders in `index.css`:
+
+```css
+@import 'react-quill-new/dist/quill.snow.css';
+
+.ql-container,
+.ql-toolbar,
+.ql-editor {
+  border: none !important;
+}
+```
+
+<Callout type="info">
+    Setting `readOnly` while an upload is in progress prevents the user from submitting the form with a broken image URL before the upload completes.
+</Callout>
+
+---
+
+## 3. Pagination on the Backend
+
+```js
+// controllers/post.controller.js
+export const getPosts = async (req, res) => {
+  const page  = parseInt(req.query.page)  || 1
+  const limit = parseInt(req.query.limit) || 10
+
+  const query = {}
+  if (req.query.category) query.category   = req.query.category
+  if (req.query.featured) query.isFeatured = true
+  if (req.query.search)   query.title      = { $regex: req.query.search, $options: 'i' }
+
+  if (req.query.author) {
+    const user = await UserModel.findOne({ username: req.query.author }).select('_id')
+    if (!user) return res.status(404).json({ message: 'No posts found' })
+    query.user = user._id
+  }
+
+  const sortObj = { createdAt: -1 } // default: newest
+  if (req.query.sort === 'oldest')   sortObj.createdAt = 1
+  if (req.query.sort === 'popular')  { sortObj.visit = -1; delete sortObj.createdAt }
+  if (req.query.sort === 'trending') {
+    sortObj.visit = -1
+    query.createdAt = { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+  }
+
+  const [posts, totalPosts] = await Promise.all([
+    PostModel.find(query)
+      .populate('user', 'username img')
+      .sort(sortObj)
+      .skip((page - 1) * limit)
+      .limit(limit),
+    PostModel.countDocuments(query),
+  ])
+
+  res.status(200).json({
+    posts,
+    hasMore: page * limit < totalPosts,
+    currentPage: page,
+  })
+}
+```
+
+---
+
+## 4. Search, Filters & URL State
+
+Storing filters in the URL means users can share links and the browser back button works as expected.
+
+```jsx
+// PostListPage.jsx
+import { useSearchParams } from 'react-router-dom'
+
+const [searchParams, setSearchParams] = useSearchParams()
+
+// Pass to fetch as a plain object
+const searchParamsObj = Object.fromEntries(searchParams.entries())
+
+// Update a single param without losing the others
+const handleCategoryChange = (cat) => {
+  setSearchParams({ ...searchParamsObj, category: cat })
+}
+
+const handleSortChange = (e) => {
+  if (searchParams.get('sort') !== e.target.value)
+    setSearchParams({ ...searchParamsObj, sort: e.target.value })
+}
+```
+
+<Callout type="info">
+    Including `searchParams` in the TanStack Query `queryKey` ensures the query re-fetches automatically whenever the URL changes — no manual effect needed.
+</Callout>
+
+---
+
+## 5. Auto-generate Post Slugs (Backend)
+
+```js
+// controllers/post.controller.js
+export const createPost = async (req, res) => {
+  const clerkUserId = req.auth?.userId
+  if (!clerkUserId) return res.status(401).json({ message: 'Not authenticated' })
+
+  const user = await UserModel.findOne({ clerkUserId })
+  if (!user) return res.status(404).json({ message: 'User not found' })
+
+  // Generate a unique slug from the title
+  let slug = req.body.title.replace(/\s+/g, '-').toLowerCase()
+  let existingPost = await PostModel.findOne({ slug })
+  let counter = 2
+
+  while (existingPost) {
+    slug = `${slug}-${counter}`
+    existingPost = await PostModel.findOne({ slug })
+    counter++
+  }
+
+  const newPost = new PostModel({
+    user: user._id,
+    slug,
+    ...req.body,
+    img: req.body.img || '',
+  })
+
+  await newPost.save()
+  res.status(201).json(newPost)
+}
+```
+
+<Callout type="info" emoji="💡">
+    **Visit counter middleware** — Use an Express middleware function (`increaseVisit`) on the `GET /posts/:slug` route that increments the `visit` field before the main handler runs. This keeps controllers clean and separates the concern from the read logic.
+</Callout>

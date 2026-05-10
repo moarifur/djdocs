@@ -1,0 +1,259 @@
+import { Callout, Steps, Tabs } from 'nextra/components'
+
+# Frontend Setup
+
+This page covers the React 19 client: project bootstrap, global styles, environment variables, routing, and Clerk authentication.
+
+---
+
+## 1. Clone the Starter
+
+<Callout type="warning">
+    React 19 is not yet stable. Running `npm create vite` directly gives you React 18. Use the tutorial's GitHub starter branch (or fork it) to get the correct RC version with all unnecessary boilerplate already stripped out.
+</Callout>
+
+```bash
+# Fork the repo on GitHub first, then:
+git clone <your-fork-url> .
+npm install
+npm run dev
+```
+
+---
+
+## 2. Global Styles & Layout
+
+In `src/index.css` set base body styles:
+
+```css
+body {
+  background-color: #f8f4ff;
+  font-family: 'Montserrat', sans-serif;
+  width: 100vw;
+  overflow-x: hidden;
+}
+```
+
+The root layout wrapper (`MainLayout.jsx`) applies responsive horizontal padding with Tailwind:
+
+```jsx
+<div className="px-4 md:px-8 lg:px-16 xl:px-32 2xl:px-64">
+  {children}
+</div>
+```
+
+---
+
+## 3. Environment Variables
+
+Create `client/.env`:
+
+```env
+VITE_API_URL=http://localhost:3000
+VITE_IK_URL_ENDPOINT=https://ik.imagekit.io/your-id
+VITE_IK_PUBLIC_KEY=public_xxxxxxxxxxxx
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxx
+```
+
+<Callout type="info">
+    Vite requires the `VITE_` prefix for any variable you want to access on the client via `import.meta.env.VITE_*`.
+</Callout>
+
+---
+
+## 4. Routing
+
+Install React Router and set up a browser router in `main.jsx`:
+
+```bash
+npm install -f react-router-dom
+```
+
+<Steps>
+
+    ### Wrap the app with providers
+
+    ```jsx
+    // main.jsx
+    import { ClerkProvider } from '@clerk/clerk-react'
+    import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+    import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+
+    const queryClient = new QueryClient()
+    const router = createBrowserRouter([...])
+
+    ReactDOM.createRoot(document.getElementById('root')).render(
+    <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}>
+        <QueryClientProvider client={queryClient}>
+            <RouterProvider router={router} />
+        </QueryClientProvider>
+    </ClerkProvider>
+    )
+    ```
+
+    ### Define routes with a shared layout
+
+    ```jsx
+    const router = createBrowserRouter([
+    {
+        element: <MainLayout />,
+        children: [
+    { path: '/',          element: <Homepage /> },
+    { path: '/posts',     element: <PostListPage /> },
+    { path: '/:postSlug', element: <SinglePostPage /> },
+    { path: '/write',     element: <WritePage /> },
+    { path: '/login',     element: <LoginPage /> },
+    { path: '/register',  element: <RegisterPage /> },
+        ],
+    },
+    ])
+    ```
+
+    ### Add `<Outlet />` to MainLayout
+
+    ```jsx
+    import { Outlet } from 'react-router-dom'
+    import Navbar from '../components/Navbar'
+
+    export default function MainLayout() {
+    return (
+    <div className="px-4 md:px-8 lg:px-16 xl:px-32 2xl:px-64">
+    <Navbar />
+    <Outlet />
+    </div>
+    )
+}
+    ```
+
+</Steps>
+
+---
+
+## 5. Authentication with Clerk
+
+<Steps>
+
+    ### Install Clerk
+
+    ```bash
+    npm install -f @clerk/clerk-react
+    ```
+
+    ### Use built-in Clerk components on auth pages
+
+    <Tabs items={['LoginPage', 'RegisterPage']}>
+        <Tabs.Tab>
+            ```jsx
+            // LoginPage.jsx
+            import { SignIn } from '@clerk/clerk-react'
+
+            export default function LoginPage() {
+            return (
+            <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 80px)' }}>
+            <SignIn signUpUrl="/register" />
+        </div>
+        )
+        }
+        ```
+    </Tabs.Tab>
+    <Tabs.Tab>
+        ```jsx
+        // RegisterPage.jsx
+        import { SignUp } from '@clerk/clerk-react'
+
+        export default function RegisterPage() {
+        return (
+        <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 80px)' }}>
+        <SignUp signInUrl="/login" />
+    </div>
+    )
+    }
+    ```
+</Tabs.Tab>
+</Tabs>
+
+### Gate protected pages
+
+```jsx
+// WritePage.jsx
+import { useUser } from '@clerk/clerk-react'
+
+export default function WritePage() {
+const { isLoaded, isSignedIn } = useUser()
+
+if (!isLoaded)    return <div>Loading…</div>
+if (!isSignedIn)  return <div>You must be logged in.</div>
+
+return <WriteForm />
+}
+```
+
+</Steps>
+
+---
+
+## 6. Image Optimization with ImageKit
+
+<Callout type="tip">
+    ImageKit has a generous free tier and provides lazy loading, low-quality image placeholders (LQIP), and on-the-fly resizing — all through its React SDK.
+</Callout>
+
+Install the SDK:
+
+```bash
+npm install -f imagekitio-react
+```
+
+Create a reusable `Image` component:
+
+```jsx
+// src/components/Image.jsx
+import { IKImage } from 'imagekitio-react'
+
+export default function Image({ src, className, w, h, alt }) {
+  return (
+    <IKImage
+      urlEndpoint={import.meta.env.VITE_IK_URL_ENDPOINT}
+      path={src}
+      className={className}
+      loading="lazy"
+      lqip={{ active: true, quality: 20 }}
+      width={w}
+      height={h}
+      transformation={[{ width: w, height: h }]}
+      alt={alt}
+    />
+  )
+}
+```
+
+<Callout type="info">
+    Always pass a `transformation` width sized to the largest the image can appear on screen (accounting for padding). This avoids serving the original full-resolution file for small thumbnails.
+</Callout>
+
+---
+
+## 7. Notifications with React Toastify
+
+```bash
+npm install -f react-toastify
+```
+
+Register the container once in `main.jsx`:
+
+```jsx
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
+
+// Inside your root render:
+<ToastContainer position="bottom-right" />
+```
+
+Then trigger toasts anywhere in the app:
+
+```jsx
+import { toast } from 'react-toastify'
+
+toast.success('Post created!')
+toast.error(error.response.data)
+```
