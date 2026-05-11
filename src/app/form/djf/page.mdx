@@ -1,0 +1,504 @@
+---
+title: Working with Forms
+description: A comprehensive guide to building, processing, and rendering forms in Django — covering HTML forms, GET vs POST, the Form class, views, templates, and field rendering.
+---
+
+import { Callout, Steps, Tabs, FileTree } from 'nextra/components'
+
+# Working with Forms
+
+Unless you're building a site that only publishes content, you'll need to understand and use forms. Django provides a full range of tools to accept input from visitors, then process and respond to it.
+
+---
+
+## HTML Forms
+
+In HTML, a form is a collection of elements inside `<form>...</form>` that let visitors enter text, select options, manipulate controls, and send that information back to the server.
+
+A form must specify two things:
+
+- **Where** — the URL to which the user's input should be returned
+- **How** — the HTTP method (`GET` or `POST`) to use
+
+```html
+<form action="/your-name/" method="post">
+  <label for="your_name">Your name:</label>
+  <input id="your_name" type="text" name="your_name" value="{{ current_name }}">
+  <input type="submit" value="OK">
+</form>
+```
+
+---
+
+## GET vs POST
+
+<Callout type="info">
+    `GET` and `POST` are the only HTTP methods used when dealing with forms.
+</Callout>
+
+<Tabs items={['POST', 'GET']}>
+    <Tabs.Tab>
+        **POST** bundles form data, encodes it, and sends it to the server.
+
+        **Use POST when:**
+        - The request changes system state (e.g., database writes)
+        - Submitting passwords or sensitive data
+        - Sending large or binary data (e.g., file uploads)
+
+        Django's login form uses POST. Combined with CSRF protection, it offers strong access control.
+    </Tabs.Tab>
+    <Tabs.Tab>
+        **GET** bundles submitted data into a URL string.
+
+        **Use GET when:**
+        - The request does **not** affect system state
+        - You want the URL to be bookmarkable or shareable (e.g., search pages)
+
+        Example URL produced by a Django docs search:
+        ```
+        https://docs.djangoproject.com/search/?q=forms&release=1
+        ```
+
+        <Callout type="warning">
+            Never use GET for password forms — the password will appear in the URL, browser history, and server logs in plain text.
+        </Callout>
+    </Tabs.Tab>
+</Tabs>
+
+---
+
+## Django's Role in Forms
+
+Handling forms is complex. Django simplifies and automates three distinct parts:
+
+| Step | What Django Handles |
+|------|---------------------|
+| **Prepare** | Restructures data to make it ready for rendering |
+| **Render** | Creates HTML forms for the data |
+| **Process** | Receives, validates, and cleans submitted data |
+
+---
+
+## The Django Form Class
+
+At the heart of Django's form system is the `Form` class. Just as a model describes the logical structure of a database object, a `Form` class describes how a form works and appears.
+
+- A **model field** maps to a **database column**
+- A **form field** maps to an HTML `<input>` element
+- A **ModelForm** bridges the two, mapping model fields directly to form inputs
+
+Each form field is represented in the browser as a **widget** — a piece of UI. Every field type has a sensible default widget, but you can override it.
+
+---
+
+## Building a Form
+
+<Steps>
+
+    ### Define the Form Class
+
+    Create a `forms.py` file and subclass `forms.Form`:
+
+    ```python filename="forms.py"
+    from django import forms
+
+    class NameForm(forms.Form):
+    your_name = forms.CharField(label="Your name", max_length=100)
+    ```
+
+    This does two things with `max_length=100`:
+    - Adds `maxlength="100"` to the HTML `<input>` (browser-side enforcement)
+    - Validates the length when Django receives the form (server-side enforcement)
+
+    The rendered HTML for this field looks like:
+
+    ```html
+    <label for="your_name">Your name:</label>
+    <input id="your_name" type="text" name="your_name" maxlength="100" required>
+        ```
+
+        <Callout>
+            Notice: Django does **not** render the surrounding `<form>` tags or the submit button. You provide those in your template.
+        </Callout>
+
+        ### Write the View
+
+        ```python filename="views.py"
+        from django.http import HttpResponseRedirect
+        from django.shortcuts import render
+        from .forms import NameForm
+
+        def get_name(request):
+        if request.method == "POST":
+        form = NameForm(request.POST)   # Bind data to the form
+        if form.is_valid():
+        # Access validated data via form.cleaned_data
+        # ... process it ...
+        return HttpResponseRedirect("/thanks/")
+        else:
+        form = NameForm()               # Create an empty (unbound) form
+
+        return render(request, "name.html", {"form": form})
+        ```
+
+        ### Write the Template
+
+        ```html filename="name.html"
+        <form action="/your-name/" method="post">
+            {% csrf_token %}
+            {{ form }}
+            <input type="submit" value="Submit">
+        </form>
+        ```
+
+        <Callout type="warning" emoji="🔒">
+            **CSRF Protection** — Always include `{% csrf_token %}` inside every POST form. Django uses it to protect against Cross Site Request Forgery attacks.
+        </Callout>
+
+</Steps>
+
+---
+
+## Bound vs Unbound Forms
+
+| | Unbound Form | Bound Form |
+|---|---|---|
+| **Has data?** | No | Yes |
+| **When rendered** | Empty or default values | Filled with submitted data |
+| **Can validate?** | No | Yes |
+| **On invalid submit** | — | Shows inline error messages |
+
+Check with `form.is_bound`.
+
+---
+
+## Form Validation and `cleaned_data`
+
+When `form.is_valid()` returns `True`:
+
+- All fields contain valid data
+- The validated data is placed in `form.cleaned_data` as proper Python types
+
+```python
+if form.is_valid():
+subject = form.cleaned_data["subject"]   # str
+cc_myself = form.cleaned_data["cc_myself"]  # bool
+# IntegerField → int, FloatField → float, etc.
+```
+
+<Callout>
+    You can still access raw unvalidated data via `request.POST`, but always prefer `form.cleaned_data` after validation.
+</Callout>
+
+---
+
+## A More Complete Form Example
+
+```python filename="forms.py"
+from django import forms
+
+class ContactForm(forms.Form):
+subject   = forms.CharField(max_length=100)
+message   = forms.CharField(widget=forms.Textarea)
+sender    = forms.EmailField()
+cc_myself = forms.BooleanField(required=False)
+```
+
+Processing it in a view:
+
+```python filename="views.py"
+from django.core.mail import send_mail
+
+if form.is_valid():
+subject   = form.cleaned_data["subject"]
+message   = form.cleaned_data["message"]
+sender    = form.cleaned_data["sender"]
+cc_myself = form.cleaned_data["cc_myself"]
+
+recipients = ["info@example.com"]
+if cc_myself:
+recipients.append(sender)
+
+send_mail(subject, message, sender, recipients)
+return HttpResponseRedirect("/thanks/")
+```
+
+---
+
+## Widgets
+
+Each field type has a default widget. You can override it:
+
+| Field | Default Widget | Override Example |
+|-------|----------------|-----------------|
+| `CharField` | `TextInput` → `<input type="text">` | `widget=forms.Textarea` |
+    | `EmailField` | `EmailInput` → `<input type="email">` | — |
+        | `BooleanField` | `CheckboxInput` | — |
+        | `DateField` | `DateInput` | Date picker widget |
+
+        ```python
+        message = forms.CharField(widget=forms.Textarea)
+        ```
+
+        <Callout type="info">
+            **HTML5 Input Types** — `URLField`, `EmailField`, and integer fields use `url`, `email`, and `number` HTML5 input types. Browsers may apply stricter validation than Django. Disable with `novalidate` on the `<form>` tag, or override with `widget=TextInput`.
+        </Callout>
+
+        ---
+
+        ## Working with Form Templates
+
+        ### Auto-render the Whole Form
+
+        ```html
+        {{ form }}
+        ```
+
+        This outputs all `<label>` and `<input>` elements — but not the surrounding `<form>` tags or submit button.
+
+            ### Reusable Form Templates
+
+            Set a custom template site-wide:
+
+            ```python filename="settings.py"
+            from django.forms.renderers import TemplatesSetting
+
+            class CustomFormRenderer(TemplatesSetting):
+            form_template_name = "form_snippet.html"
+
+            FORM_RENDERER = "project.settings.CustomFormRenderer"
+            ```
+
+            Or per form class:
+
+            ```python
+            class MyForm(forms.Form):
+            template_name = "form_snippet.html"
+            ```
+
+            Or per render call in a view:
+
+            ```python
+            def index(request):
+            form = MyForm()
+            rendered_form = form.render("form_snippet.html")
+            return render(request, "index.html", {"form": rendered_form})
+            ```
+
+            ### Reusable Field Group Templates
+
+            Render a single field including its label, widget, errors, and help text:
+
+            ```html
+            {{ form.non_field_errors }}
+            <div class="fieldWrapper">
+                {{ form.subject.as_field_group }}
+            </div>
+            <div class="fieldWrapper">
+                {{ form.message.as_field_group }}
+            </div>
+            ```
+
+            ---
+
+            ## Rendering Fields Manually
+
+            For full control over layout:
+
+            ```html
+            {{ form.non_field_errors }}
+
+            <div class="fieldWrapper">
+                {{ form.subject.errors }}
+                <label for="{{ form.subject.id_for_label }}">Email subject:</label>
+                {{ form.subject }}
+            </div>
+
+            <div class="fieldWrapper">
+                {{ form.message.errors }}
+                <label for="{{ form.message.id_for_label }}">Your message:</label>
+                {{ form.message }}
+            </div>
+
+            <div class="fieldWrapper">
+                {{ form.sender.errors }}
+                <label for="{{ form.sender.id_for_label }}">Your email address:</label>
+                {{ form.sender }}
+            </div>
+
+            <div class="fieldWrapper">
+                {{ form.cc_myself.errors }}
+                <label for="{{ form.cc_myself.id_for_label }}">CC yourself?</label>
+                {{ form.cc_myself }}
+            </div>
+            ```
+
+            Or use `label_tag()` for auto-generated labels:
+
+            ```html
+            <div class="fieldWrapper">
+                {{ form.subject.errors }}
+                {{ form.subject.label_tag }}
+                {{ form.subject }}
+            </div>
+            ```
+
+            ---
+
+            ## Rendering Form Errors
+
+            ### Field Errors
+
+            ```html
+            {{ form.subject.errors }}
+            ```
+
+            Renders as:
+
+            ```html
+            <ul class="errorlist">
+                <li>This field is required.</li>
+            </ul>
+            ```
+
+            Loop for custom styling:
+
+            ```html
+            {% if form.subject.errors %}
+            <ol>
+                {% for error in form.subject.errors %}
+                <li><strong>{{ error|escape }}</strong></li>
+                {% endfor %}
+            </ol>
+            {% endif %}
+            ```
+
+            ### Non-field Errors
+
+            ```html
+            {{ form.non_field_errors }}
+            ```
+
+            Renders with an extra `nonfield` CSS class:
+
+            ```html
+            <ul class="errorlist nonfield">
+                <li>Generic validation error</li>
+            </ul>
+            ```
+
+            ---
+
+            ## Looping Over Fields
+
+            ```html
+            {% for field in form %}
+            <div class="fieldWrapper">
+                {{ field.errors }}
+                {{ field.label_tag }} {{ field }}
+                {% if field.help_text %}
+                <p class="help" id="{{ field.auto_id }}_helptext">
+                    {{ field.help_text|safe }}
+                </p>
+                {% endif %}
+            </div>
+            {% endfor %}
+            ```
+
+            ### Useful Field Attributes
+
+            | Attribute | Description |
+            |-----------|-------------|
+            | `{{ field.errors }}` | Validation errors as an `<ul>` |
+                | `{{ field.field }}` | The underlying `Field` instance (access `.max_length`, etc.) |
+                | `{{ field.help_text }}` | Associated help text |
+                | `{{ field.html_name }}` | Name used in the `<input>` element |
+                    | `{{ field.id_for_label }}` | ID used for `<label for="...">` |
+                        | `{{ field.is_hidden }}` | `True` if it's a hidden field |
+                        | `{{ field.label }}` | Human-readable label string |
+                        | `{{ field.label_tag }}` | Full `<label>` element with suffix |
+                            | `{{ field.legend_tag }}` | `<legend>` for multi-input widgets |
+                                | `{{ field.value }}` | Current field value |
+
+                                ---
+
+                                ## Looping Over Hidden and Visible Fields
+
+                                ```html
+                                {# Hidden fields #}
+                                {% for hidden in form.hidden_fields %}
+                                {{ hidden }}
+                                {% endfor %}
+
+                                {# Visible fields #}
+                                {% for field in form.visible_fields %}
+                                <div class="fieldWrapper">
+                                    {{ field.errors }}
+                                    {{ field.label_tag }} {{ field }}
+                                </div>
+                                {% endfor %}
+                                ```
+
+                                <Callout type="warning">
+                                    Errors in hidden fields are usually a sign of form tampering. Handle them separately from visible field errors.
+                                </Callout>
+
+                                ---
+
+                                ## ModelForm
+
+                                If your form maps directly to a Django model, use `ModelForm` to avoid duplicating field definitions:
+
+                                ```python
+                                from django import forms
+                                from .models import Article
+
+                                class ArticleForm(forms.ModelForm):
+                                class Meta:
+                                model = Article
+                                fields = ["title", "content", "published"]
+                                ```
+
+                                `ModelForm` inherits from `Form` via a shared `BaseForm` class. It automatically builds fields and their attributes from the model — the same mechanism Django Admin uses.
+
+                                ---
+
+                                ## Further Topics
+
+                                <FileTree>
+                                    <FileTree.Folder name="Forms" defaultOpen>
+                                        <FileTree.File name="Formsets" />
+                                        <FileTree.File name="Creating forms from models (ModelForm)" />
+                                        <FileTree.File name="Model formsets" />
+                                        <FileTree.File name="Inline formsets" />
+                                        <FileTree.File name="Form Assets (Media class)" />
+                                        <FileTree.File name="Form and field validation" />
+                                        <FileTree.File name="The Forms API reference" />
+                                    </FileTree.Folder>
+                                </FileTree>
+
+                                ---
+
+                                ## Quick Reference
+
+                                ```python
+                                # 1. Define
+                                class MyForm(forms.Form):
+                                name = forms.CharField(max_length=100)
+
+                                # 2. Instantiate (unbound)
+                                form = MyForm()
+
+                                # 3. Bind data (from POST)
+                                form = MyForm(request.POST)
+
+                                # 4. Validate
+                                if form.is_valid():
+                                data = form.cleaned_data["name"]  # Safe, typed Python value
+
+                                # 5. Render in template
+                                # {{ form }} — auto render all fields
+                                # {{ form.name }} — render single field
+                                # {{ form.name.errors }} — field errors
+                                # {{ form.non_field_errors }} — non-field errors
+                                ```
